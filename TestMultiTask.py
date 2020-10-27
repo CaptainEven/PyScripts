@@ -1,4 +1,7 @@
 # encoding=utf-8
+"""
+Switching between 2 tasks.
+"""
 
 import os
 import time
@@ -10,15 +13,18 @@ class XiaoMing(threading.Thread):
     def __init__(self, condition):
         super().__init__(name='小明')
         self.condition = condition
-    
+        self.inner_count = 0  # 内部计数
+
     def run(self):
-        global count
+        global count, total_count
 
         with self.condition:
-            while count < 10:
+            while count < total_count:
                 # ---------- Do something...
-                print('{:s}, {:d}'.format(self.name, count))
                 count += 1
+                self.inner_count += 1
+                print('{:s} | global count: {:d}, inner count: {:d}'
+                      .format(self.name, count, self.inner_count))
                 # ----------
 
                 self.condition.notify()
@@ -29,36 +35,38 @@ class XiaoHong(threading.Thread):
     def __init__(self, condition):
         super().__init__(name='小红')
         self.condition = condition
+        self.inner_count = 0  # 内部计数
 
     def run(self):
-        global count
+        global count, total_count
 
         with self.condition:
 
-            while count < 10:
+            while count < total_count:
                 self.condition.wait()
 
                 # ---------- Do something...
-                print('{:s}, {:d}'.format(self.name, count))
                 count += 1
+                self.inner_count += 1
+                print('{:s} | global count: {:d}, inner_count: {:d}'
+                      .format(self.name, count, self.inner_count))
                 # ----------
 
                 self.condition.notify()
 
-    
 
 def TestTaskSwitch():
     condition = threading.Condition()
 
-    global count
-    count = 0
-    
+    global count, total_count
+    count, total_count = 0, 100
+
     XM = XiaoMing(condition)
     XH = XiaoHong(condition)
 
     XH.start()
     XM.start()
-    
+
     XH.join()
     XM.join()
 
