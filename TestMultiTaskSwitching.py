@@ -74,4 +74,4 @@ def TestTaskSwitch():
 
 if __name__ == '__main__':
     TestTaskSwitch()
-    print('Done.')
+    print('Test done.')
