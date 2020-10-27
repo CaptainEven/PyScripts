@@ -1,6 +1,7 @@
 # encoding=utf-8
 """
 Switching between 2 tasks.
+Using wait & notify.
 """
 
 import os
