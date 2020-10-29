@@ -20,12 +20,14 @@ y = [np.exp(a1*i**2+b1*i+c1)+random.gauss(0, 8) for i in h]
 J = mat(np.zeros((n, 3)))  # 雅克比矩阵
 fx = mat(np.zeros((n, 1)))  # f(x)  100*1  误差
 fx_tmp = mat(np.zeros((n, 1)))
-xk = mat([[2.4], [2.4], [2.4]])
+xk = mat([[3.0], [2.0], [1.0]])
+print('\Initial parameters:\n', xk)
+
 # xk = mat([[12.0],[12.0],[12.0]]) # 参数初始化
 lase_mse = 0
 step = 0
 u, v = 1, 2
-conve = 10000
+max_iter = 10000
 
 
 def Func(abc, iput):   # 需要拟合的函数，abc是包含三个参数的一个矩阵[[a],[b],[c]]
@@ -53,13 +55,15 @@ def Deriv(abc, iput, n):
     return d
 
 
-while (conve):
+while max_iter:
     mse, mse_tmp = 0, 0
     step += 1
     fx = Func(xk, h) - y
     mse += sum(fx**2)
+
     for j in range(3):
         J[:, j] = Deriv(xk, h, j)  # 数值求导
+
     mse /= n  # 范围约束
 
     H = J.T*J + u*np.eye(3)   # 3*3
@@ -69,8 +73,9 @@ while (conve):
     fx_tmp = Func(xk_tmp, h) - y
     mse_tmp = sum(fx_tmp[:, 0]**2)
     mse_tmp /= n
+
     # 判断是否下降
-    q = float((mse - mse_tmp)/((0.5*dx.T*(u*dx - J.T*fx))[0, 0]))
+    q = float((mse - mse_tmp) / ((0.5*dx.T*(u*dx - J.T*fx))[0, 0]))
     if q > 0:
         s = 1.0/3.0
         v = 2
@@ -88,13 +93,14 @@ while (conve):
         xk = xk_tmp
 
     print("step = %d,abs(mse-lase_mse) = %.8f" % (step, abs(mse-lase_mse)))
-    if abs(mse-lase_mse) < 0.000001:
+    if abs(mse - lase_mse) < 0.000001:
         break
 
     lase_mse = mse  # 记录上一个 mse 的位置
-    conve -= 1
+    max_iter -= 1
 
-print(xk)
+print('\nFinal optimized parameters:\n', xk)
+
 # 用拟合好的参数画图
 z = [Func(xk, i) for i in h]
 
