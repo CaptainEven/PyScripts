@@ -52,6 +52,6 @@ def parse_ign_reg_and_apply2img(img_dir, xml_f_path):
 
 
 if __name__ == '__main__':
-    parse_ign_reg_and_apply2img(img_dir='f:/seq_data/images/mcmot_seq_imgs_29',
-                                xml_f_path='f:/seq_img_root/Annotations/00000.xml')
+    parse_ign_reg_and_apply2img(img_dir='f:/tmp/',
+                                xml_f_path='f:/00000.xml')
     print('Done\n')

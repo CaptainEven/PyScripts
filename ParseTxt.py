@@ -358,6 +358,7 @@ def cvt_dl_format_1(lb_f_path):
 
 def cvt_dl_format_2(lb_f_path):
     """
+    x1, y1, w, h -> x1, 
     """
     if not os.path.isfile(lb_f_path):
         print('[Err]: invalid label file.')
@@ -382,8 +383,7 @@ def cvt_dl_format_2(lb_f_path):
                     h = int(line[cur + 4])
                     cls_name = str(line[cur + 5])
 
-                    obj = [track_id, str(x1), str(y1), str(
-                        x1+w), str(y1+h), cls_name]
+                    obj = [track_id, str(x1), str(y1), str(x1+w), str(y1+h), cls_name]
                     objs.append(obj)
 
                 assert(len(objs) == n_objs)
@@ -514,8 +514,8 @@ if __name__ == '__main__':
     # cvt_dl_format_2(lb_f_path='F:/seq_data/seq_28_gt.txt')
     # cvt_dl_format_4(lb_f_path='f:/seq_data/seq_23_gt.txt')
 
-    # # ----- DarkLabel标注结果可视化
-    # # write label viz images
+    # ----- DarkLabel标注结果可视化
+    # write label viz images
     # for i in range(1, 19):
     #     viz_dark_label(img_dir='f:/seq_data/images/mcmot_seq_imgs_{}'.format(i),
     #                    txt_label_f_path='f:/seq_data/images/mcmot_seq_imgs_{}/mcmot_seq_imgs_{}_gt.txt'.format(i, i),

@@ -185,6 +185,10 @@ def videos2frames(videos_list,
 
     if not os.path.exists(img_root):
         os.makedirs(img_root)
+    else:
+        shutil.rmtree(img_root)
+        os.makedirs(img_root)
+    
     # for x in os.listdir(img_root):
     #     if x.endswith('.jpg'):
     #         x_path = os.path.join(img_root, x)
@@ -197,6 +201,10 @@ def videos2frames(videos_list,
 
     count = 0
     for x in tqdm(videos_list):
+        if not os.path.isfile(x):
+            print('[Err]: invalid video file.')
+            continue
+
         # 每个视频单独计数
 
         seq_name = os.path.split(x)[-1]  # mcmot_seq11.mp4
@@ -334,7 +342,7 @@ if __name__ == '__main__':
     # video_list = ['f:mcmot_seq1/car_8.mp4',
     #    'f:/car_9.mp4']
     video_list = [
-        'f:/dog.mp4',
+        'f:/val_3.mp4',
         # 'f:/mcmot_seq26_2.mp4',
         #   'f:/mcmot_seq26_3.mp4',
         #   'f:/mcmot_seq25_4.mp4',
