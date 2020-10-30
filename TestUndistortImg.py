@@ -12,11 +12,10 @@ def undistort(img_path,
     undistort image using distort model
     test gray-scale image only
     """
-    if not os.path.isfile(img_path):
-        print('=> [Err]: invalid image path')
-        return
-
     img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    if img is None:
+        print('[Err]: empty image.')
+        return
 
     H, W = img.shape
     img_undistort = np.zeros(img.shape)
