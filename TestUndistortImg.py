@@ -5,33 +5,41 @@ import cv2
 import os
 
 
-def undistort(img_path,
-              fx, fy, cx, cy,
-              k1, k2,  # radial distortion parameters
-              p1=None, p2=None,  # tagential distortion parameters
+def undistort(img,                   # image data
+              fx, fy, cx, cy,        # camera intrinsics
+              k1, k2,                # radial distortion parameters
+              p1=None, p2=None,      # tagential distortion parameters
               radial_ud_only=True):
     """
     undistort image using distort model
     test gray-scale image only
     """
-    img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
         print('[Err]: empty image.')
         return
 
-    H, W = img.shape
-    img_undistort = np.zeros(img.shape)
+    is_bgr = len(img.shape) == 3
+    if is_bgr:
+        H, W, C = img.shape
+    elif len(img.shape) == 2:
+        H, W = img.shape
+    else:
+        print('[Err]: image format wrong!')
+        return
+
+    img_undistort = np.zeros_like(img, dtype=np.uint8)
 
     # fill in each pixel in un-distorted image
     for v in range(H):
-        for u in range(W):
+        for u in range(W):  # u,v are pixel coordinates
+            # convert to camera coordinates by camera intrinsic parameters
             x1 = (u - cx) / fx
             y1 = (v - cy) / fy
 
             r_square = (x1 * x1) + (y1 * y1)
             r_quadric = r_square * r_square
 
-            if radial_ud_only:
+            if radial_ud_only:  # do radial undistortion only
                 x2 = x1 * (1.0 + k1 * r_square + k2 * r_quadric)
                 y2 = y1 * (1.0 + k1 * r_square + k2 * r_quadric)
             else:  # do radial undistortion and tangential undistortion
@@ -40,20 +48,30 @@ def undistort(img_path,
                 y2 = y1 * (1.0 + k1 * r_square + k2 * r_quadric) + \
                     p1 * (r_square + 2.0 * y1 * y1) + 2.0 * p2 * x1 * y1
 
-            # nearest neighbor interpolation
-            u_distort = int(fx * x2 + cx)
-            v_distort = int(fy * y2 + cy)
+            # convert back to pixel coordinates
+            # using nearest neighbor interpolation
+            u_corrected = int(fx * x2 + cx + 0.5)
+            v_corrected = int(fy * y2 + cy + 0.5)
 
-            if u_distort < 0 or u_distort >= W \
-                    or v_distort < 0 or v_distort >= H:
-                img_undistort[v, u] = 0
+            # @Todo: using bilinear interpolation...
+
+            # processing pixel outside the image area
+            if u_corrected < 0 or u_corrected >= W \
+                    or v_corrected < 0 or v_corrected >= H:
+                if is_bgr:
+                    img_undistort[v, u, :] = 0
+                else:
+                    img_undistort[v, u] = 0
             else:
-                img_undistort[v, u] = img[v_distort, u_distort]
+                if is_bgr:
+                    img_undistort[v, u, :] = img[v_corrected, u_corrected, :]  # y, x
+                else:
+                    img_undistort[v, u] = img[v_corrected, u_corrected]  # y, x
 
     return img_undistort.astype('uint8')
 
 
-def test_img_undistortion():
+def test_img_undistortion(is_color=True):
     k1 = -0.28340811
     k2 = 0.07395907
     p1 = 0.00019359
@@ -68,10 +86,19 @@ def test_img_undistortion():
         print('[Err]: invalid image path.')
         return
 
-    img_orig = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+    img_orig = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+
+    if is_color:
+        img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    else:
+        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+
+    if img is None:
+        print('[Err]: empty image.')
+        return
 
     # ---------- Do undistortion
-    img_undistort = undistort(img_path,
+    img_undistort = undistort(img,
                               fx, fy, cx, cy,
                               k1, k2, p1, p2)
     # ----------
@@ -83,7 +110,7 @@ def test_img_undistortion():
 
 
 if __name__ == '__main__':
-    test_img_undistortion()
+    test_img_undistortion(is_color=True)
     print('=> Test done.')
 
 
