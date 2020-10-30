@@ -7,7 +7,9 @@ import os
 
 def undistort(img_path,
               fx, fy, cx, cy,
-              k1, k2, p1, p2):
+              k1, k2,  # radial distortion parameters
+              p1=None, p2=None,  # tagential distortion parameters
+              radial_ud_only=True):
     """
     undistort image using distort model
     test gray-scale image only
@@ -29,10 +31,14 @@ def undistort(img_path,
             r_square = (x1 * x1) + (y1 * y1)
             r_quadric = r_square * r_square
 
-            x2 = x1 * (1.0 + k1 * r_square + k2 * r_quadric) + \
-                2.0 * p1 * x1 * y1 + p2 * (r_square + 2.0 * x1 * x1)
-            y2 = y1 * (1.0 + k1 * r_square + k2 * r_quadric) + \
-                p1 * (r_square + 2.0 * y1 * y1) + 2.0 * p2 * x1 * y1
+            if radial_ud_only:
+                x2 = x1 * (1.0 + k1 * r_square + k2 * r_quadric)
+                y2 = y1 * (1.0 + k1 * r_square + k2 * r_quadric)
+            else:  # do radial undistortion and tangential undistortion
+                x2 = x1 * (1.0 + k1 * r_square + k2 * r_quadric) + \
+                    2.0 * p1 * x1 * y1 + p2 * (r_square + 2.0 * x1 * x1)
+                y2 = y1 * (1.0 + k1 * r_square + k2 * r_quadric) + \
+                    p1 * (r_square + 2.0 * y1 * y1) + 2.0 * p2 * x1 * y1
 
             # nearest neighbor interpolation
             u_distort = int(fx * x2 + cx)
