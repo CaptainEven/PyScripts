@@ -176,10 +176,11 @@ def undistort_img(img_path,
         x, y = pt
         dist += abs(A*x + B*y + C) / math.sqrt(A*A + B*B)
         y_est = k*x + b
-        y_delta = y - y_est
+        y_delta = abs(y - y_est)
         # print(y_delta)
         offset += y_delta
     dist /= float(len(pts_on_curve))
+    offset /= float(len(pts_on_curve))
 
     print('Mean dist: {:.3f}'.format(dist))
     print('Offset: {:.3f}'.format(offset))
@@ -223,10 +224,11 @@ def undistort_img(img_path,
         cv2.circle(img_undistort, (int(x+0.5), int(y+0.5)), 5, (0, 255, 0), -1)
         dist += abs(A*x + B*y + C) / math.sqrt(A*A + B*B)
         y_est = k*x + b
-        y_delta = y - y_est
+        y_delta = abs(y - y_est)
         # print(y_delta)
         offset += y_delta
     dist /= float(Xs.shape[0])
+    offset /= float(Xs.shape[0])
 
     print('Mean dist after optimization: {:.3f}'.format(dist))
     print('Offset after optimization: {:.3f}'.format(offset))
