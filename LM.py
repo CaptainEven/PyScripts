@@ -1,4 +1,3 @@
-
 # encoding=utf-8
 
 """
@@ -14,15 +13,15 @@ random.seed(0)
 
 N = 100
 a1, b1, c1 = 1, 2, 3      # 这个是需要拟合的函数y(x) 的真实参数
-inputs = np.linspace(0, 1, N).reshape(100, 1)       
+X = np.linspace(0, 1, N).reshape(100, 1)       
 
 # 产生包含噪声的数据
-y = [np.exp(a1*i**2 + b1*i + c1) + random.gauss(0, 8) for i in inputs]
+Y = [np.exp(a1*i**2 + b1*i + c1) + random.gauss(0, 8) for i in X]
 
 J = mat(np.zeros((N, 3)))  # 雅克比矩阵
 
-loss = mat(np.zeros((N, 1)))  # f(x)  100*1  误差
-loss_tmp = mat(np.zeros((N, 1)))
+r = mat(np.zeros((N, 1)))  # f(x)  100*1  误差
+r_tmp = mat(np.zeros((N, 1)))
 params = mat([[3.0], [2.0], [1.0]])  # 初始化待优化参数
 print('\Initial parameters:\n', params)
 
@@ -41,20 +40,22 @@ def Func(abc, iput):   # 需要拟合的函数，abc是包含三个参数的一�
 
 
 # 对函数求偏导
-def Deriv(abc, iput, n):
+def Deriv(abc, Xs, i):
     """
     数值逼近的方式求偏导
     """
-    x1 = abc.copy()  # deepcopy in numpy
-    x2 = abc.copy()
+    Xs = np.reshape(Xs, (-1, 1))
+    
+    abc_delta_1 = abc.copy()  # deepcopy in numpy
+    abc_delta_2 = abc.copy()
 
-    x1[n, 0] -= 0.000001
-    x2[n, 0] += 0.000001
+    abc_delta_1[i, 0] -= 0.000001
+    abc_delta_2[i, 0] += 0.000001
 
-    p1 = Func(x1, iput)
-    p2 = Func(x2, iput)
+    y1 = Func(abc_delta_1, Xs)
+    y2 = Func(abc_delta_2, Xs)
 
-    d = (p2 - p1) * 1.0 / (0.000002)
+    d = (y2 - y1) * 1.0 / (0.000002)
 
     return d
 
@@ -63,31 +64,31 @@ while max_iter:
     mse, mse_tmp = 0.0, 0.0
     step += 1
 
-    loss = Func(params, inputs) - y  # loss function
+    r = Y - Func(params, X)  # loss function
 
-    mse += sum(loss**2)
+    mse += sum(r**2)
     mse /= N  # normalize
 
     # 构建雅各比矩阵
-    for j in range(3):
-        J[:, j] = Deriv(params, inputs, j)  # 数值求导
+    for j in range(3):  # 3个变量
+        J[:, j] = Deriv(params, X, j)  # 数值求导
 
     H = J.T*J + u*np.eye(3)   # 3*3
-    params_delta = -H.I * J.T*loss
+    hlm = H.I * J.T * r
 
     # update parameters
     params_tmp = params.copy()
-    params_tmp += params_delta
+    params_tmp += hlm
 
     # current loss
-    loss_tmp = Func(params_tmp, inputs) - y
+    r_tmp = Y - Func(params_tmp, X)
 
-    mse_tmp = sum(loss_tmp[:, 0]**2)
+    mse_tmp = sum(r_tmp[:, 0]**2)
     mse_tmp /= N
 
     # adaptive adjustment
     q = float((mse - mse_tmp) /
-              ((0.5*params_delta.T*(u*params_delta - J.T*loss))[0, 0]))
+              ((0.5*-hlm.T*(u*-hlm - J.T*r))[0, 0]))
     if q > 0:
         s = 1.0 / 3.0
         v = 2
@@ -106,6 +107,7 @@ while max_iter:
 
     print("step = %d,abs(mse-lase_mse) = %.8f" % (step, abs(mse - last_mse)))
     print('parameters:\n', params)
+
     if abs(mse - last_mse) < 0.000001:
         break
 
@@ -115,9 +117,9 @@ while max_iter:
 print('\nFinal optimized parameters:\n', params)
 
 # 用拟合好的参数画图
-z = [Func(params, i) for i in inputs]
+z = [Func(params, i) for i in X]
 
 plt.figure(0)
-plt.scatter(inputs, y, s=4)
-plt.plot(inputs, z, 'r')
+plt.scatter(X, Y, s=4)
+plt.plot(X, z, 'r')
 plt.show()

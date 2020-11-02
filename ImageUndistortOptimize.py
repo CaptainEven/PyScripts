@@ -218,7 +218,6 @@ def undistort_img(img_path,
     # Xs = [x[0] for x in pts_correctted]
     # Ys = [x[1] for x in pts_correctted]
 
-    print('\n')
     dist, offset = 0.0, 0.0
     for x, y in zip(Xs, Ys):
         cv2.circle(img_undistort, (int(x+0.5), int(y+0.5)), 5, (0, 255, 0), -1)
@@ -229,8 +228,8 @@ def undistort_img(img_path,
         offset += y_delta
     dist /= float(Xs.shape[0])
 
-    print('Mean dist: {:.3f}'.format(dist))
-    print('Offset: {:.3f}'.format(offset))
+    print('Mean dist after optimization: {:.3f}'.format(dist))
+    print('Offset after optimization: {:.3f}'.format(offset))
 
     # Draw line of endpoints
     cv2.line(img_undistort,
@@ -270,6 +269,7 @@ def test_undistort_img():
     k2 = params[1][0]
     # ----------
 
+    # ---------- Undistort
     undistort_img(img_path, camera_intrinsics, k1, k2, p1, p2)
 
 
