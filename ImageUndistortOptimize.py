@@ -402,7 +402,7 @@ def LM(params, max_iter=100):
         mse += sum(r**2)
         mse /= N  # normalize
 
-        # Build Jacobin matrix
+        # build Jacobin matrix
         J = mat(np.zeros((N, params.shape[0])))
         for i in range(params.shape[0]):  # 
             J[:, i] = Deriv(params, fx, fy, cx, cy, pts_orig, i)
