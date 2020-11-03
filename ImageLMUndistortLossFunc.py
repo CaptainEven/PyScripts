@@ -246,7 +246,7 @@ def TestUndistortOptimize():
 
     # Init parameters to be optimized
     params = np.array([[0.1],
-                       [0.2]])  # k1k2
+                       [0.1]])  # k1k2
 
     # Input
     pts_on_curve_1 = [
@@ -294,7 +294,7 @@ def TestUndistortOptimize():
         [669, 314], [665, 325], [659, 343],
         [649, 370], [645, 378]
     ]
-    pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3, pts_on_curve_4]
+    pts_list = [pts_on_curve_1, pts_on_curve_3]
 
     # ---------- Run LM optimization
     params = LM(params, pts_list, max_iter=100)
@@ -331,14 +331,14 @@ def Func(params, fx, fy, cx, cy, pts_list):
         dist = abs(A*X+B*Y+C) / np.sqrt(A*A+B*B)
 
         if i == 0:
-            Y_est_all = Y_est.copy()
-            Y_all = Y.copy()
-            X_all = X.copy()
+            # Y_est_all = Y_est.copy()
+            # Y_all = Y.copy()
+            # X_all = X.copy()
             dist_all = dist.copy()
         else:
-            Y_est_all = np.concatenate((Y_est_all, Y_est), axis=0)
-            Y_all = np.concatenate((Y_all, Y), axis=0)
-            X_all = np.concatenate((X_all, X), axis=0)
+            # Y_est_all = np.concatenate((Y_est_all, Y_est), axis=0)
+            # Y_all = np.concatenate((Y_all, Y), axis=0)
+            # X_all = np.concatenate((X_all, X), axis=0)
             dist_all = np.concatenate((dist_all, dist), axis=0)
 
     # return Y_est_all, Y_all

@@ -6,11 +6,11 @@ import numpy as np
 from numpy import matrix as mat
 
 
-def undistort(img,                   # image data
-              fx, fy, cx, cy,        # camera intrinsics
-              k1, k2,                # radial distortion parameters
-              p1=None, p2=None,      # tagential distortion parameters
-              radial_ud_only=True):
+def undistort_img(img,                   # image data
+                  fx, fy, cx, cy,        # camera intrinsics
+                  k1, k2,                # radial distortion parameters
+                  p1=None, p2=None,      # tagential distortion parameters
+                  radial_ud_only=True):
     """
     undistort image using distort model
     test gray-scale image only
@@ -112,11 +112,11 @@ def test_undistort_pts_on_curve():
     img_orig = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
 
 
-def undistort_img(img_path,
-                  camera_intrinsics,
-                  pts_list,
-                  k1, k2, p1=None, p2=None,
-                  is_color=True):
+def undistort_img_and_statistics(img_path,
+                                 camera_intrinsics,
+                                 pts_list,
+                                 k1, k2, p1=None, p2=None,
+                                 is_color=True):
     """
     undistort of image
     given camera matrix and distortion coefficients
@@ -181,9 +181,9 @@ def undistort_img(img_path,
 
     # ---------- Do undistortion
     # ----- undistort image
-    img_undistort = undistort(img,
-                              fx, fy, cx, cy,
-                              k1, k2, p1, p2)
+    img_undistort = undistort_img(img,
+                                  fx, fy, cx, cy,
+                                  k1, k2, p1, p2)
 
     # ----- undistort points
     k1k2 = np.array([[k1],
@@ -245,8 +245,8 @@ def TestUndistortOptimize():
     p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[0.2],
-                       [0.2]])  # k1k2
+    params = np.array([[-0.1],
+                       [0.1]])  # k1k2
 
     # Input
     pts_on_curve_1 = [
@@ -281,7 +281,7 @@ def TestUndistortOptimize():
         [734, 401], [742, 401], [747, 402], [750, 402]
     ]
 
-    pts_on_curve_4 =[
+    pts_on_curve_4 = [
         [719, 49], [719, 58], [718, 67],
         [717, 77], [716, 87], [715, 97],
         [714, 106], [713, 118], [711, 128],
@@ -304,7 +304,8 @@ def TestUndistortOptimize():
     # ----------
 
     # ---------- Undistort
-    undistort_img(img_path, camera_intrinsics, pts_list, k1, k2, p1, p2)
+    undistort_img_and_statistics(
+        img_path, camera_intrinsics, pts_list, k1, k2, p1, p2)
 
 
 def Func(params, fx, fy, cx, cy, pts_list):
