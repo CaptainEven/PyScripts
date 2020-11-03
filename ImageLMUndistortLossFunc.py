@@ -245,7 +245,7 @@ def TestUndistortOptimize():
     p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[0.2],
+    params = np.array([[0.1],
                        [0.2]])  # k1k2
 
     # Input
@@ -295,7 +295,6 @@ def TestUndistortOptimize():
         [649, 370], [645, 378]
     ]
     pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3, pts_on_curve_4]
-    # pts_list = [pts_on_curve_1, pts_on_curve_3]
 
     # ---------- Run LM optimization
     params = LM(params, pts_list, max_iter=100)
@@ -328,14 +327,25 @@ def Func(params, fx, fy, cx, cy, pts_list):
         A, B, C, k, b = line_equation(X[0], Y[0], X[-1], Y[-1])
         Y_est = k*X + b
 
+        # 调到至西安的距离作为损失函数
+        dist = abs(A*X+B*Y+C) / np.sqrt(A*A+B*B)
+
         if i == 0:
             Y_est_all = Y_est.copy()
             Y_all = Y.copy()
+            X_all = X.copy()
+            dist_all = dist.copy()
         else:
             Y_est_all = np.concatenate((Y_est_all, Y_est), axis=0)
             Y_all = np.concatenate((Y_all, Y), axis=0)
+            X_all = np.concatenate((X_all, X), axis=0)
+            dist_all = np.concatenate((dist_all, dist), axis=0)
 
-    return Y_est_all, Y_all
+    # return Y_est_all, Y_all
+    # return Y_est_all - Y_all
+    # return (Y_est_all - Y_all) *  (Y_est_all - Y_all)
+    
+    return dist_all
 
 
 def Deriv(params, fx, fy, cx, cy, pts_list, i):
@@ -348,12 +358,13 @@ def Deriv(params, fx, fy, cx, cy, pts_list, i):
     params_delta_2[i, 0] += 0.000001
 
     # compute y_est_1
-    y_est_1, _ = Func(params_delta_1, fx, fy, cx, cy, pts_list)
+    r1 = Func(params_delta_1, fx, fy, cx, cy, pts_list)
 
     # compute y_est_2
-    y_est_2, _ = Func(params_delta_2, fx, fy, cx, cy, pts_list)
+    r2 = Func(params_delta_2, fx, fy, cx, cy, pts_list)
 
-    deriv = (y_est_2 - y_est_1) * 1.0 / (0.000002)
+    # deriv = (y_est_2 - y_est_1) * 1.0 / (0.000002)
+    deriv = (r1 - r2) * 1.0 / (0.000002)
 
     return deriv
 
@@ -427,8 +438,7 @@ def LM(params, pts_list, max_iter=100):
         mse, mse_tmp = 0.0, 0.0
         step += 1
 
-        Y_est, Y = Func(params, fx, fy, cx, cy, pts_list)
-        r = Y - Y_est
+        r = Func(params, fx, fy, cx, cy, pts_list)
         mse += sum(r**2)
         mse /= N  # normalize
 
@@ -444,14 +454,13 @@ def LM(params, pts_list, max_iter=100):
         params_tmp = params.copy()  # deep copy
         params_tmp += hlm
 
-        y_est, Y = Func(params_tmp, fx, fy, cx, cy, pts_list)
-        r_tmp = Y - Y_est
+        r_tmp = Func(params_tmp, fx, fy, cx, cy, pts_list)
         mse_tmp = sum(r_tmp[:, 0]**2)
         mse_tmp /= N
 
         # adaptive adjustment
         q = float((mse - mse_tmp) /
-                  ((0.5*-hlm.T*(u*-hlm - J.T*r))[0, 0]))
+                  ((0.5*hlm.T*(u*hlm - J.T*r))[0, 0]))
         if q > 0:
             s = 1.0 / 3.0
             v = 2
@@ -468,11 +477,11 @@ def LM(params, pts_list, max_iter=100):
             v = 2*v
             params = params_tmp
 
-        print("step = %d,abs(mse-lase_mse) = %.8f" %
-              (step, abs(mse - last_mse)))
+        print("step = %d, abs(mse-lase_mse) = %.3f, mse=%.3f" %
+              (step, abs(mse - last_mse), mse))
         print('parameters:\n', params)
 
-        if abs(mse - last_mse) < 0.000001:
+        if abs(mse - last_mse) < 0.1:
             break
 
         # update mse and iter_idx
