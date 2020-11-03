@@ -245,7 +245,7 @@ def TestUndistortOptimize():
     p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[-0.1],
+    params = np.array([[0.1],
                        [0.1]])  # k1k2
 
     # Input
@@ -294,8 +294,8 @@ def TestUndistortOptimize():
         [669, 314], [665, 325], [659, 343],
         [649, 370], [645, 378]
     ]
-    pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3, pts_on_curve_4]
-    # pts_list = [pts_on_curve_1, pts_on_curve_3]
+    # pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3, pts_on_curve_4]
+    pts_list = [pts_on_curve_1, pts_on_curve_3]
 
     # ---------- Run LM optimization
     params = LM(params, pts_list, max_iter=100)
