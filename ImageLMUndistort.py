@@ -455,7 +455,7 @@ def LM(params, pts_list, max_iter=100):
 
         # adaptive adjustment
         q = float((mse - mse_tmp) /
-                  ((0.5*-hlm.T*(u*-hlm - J.T*r))[0, 0]))
+                  ((0.5*hlm.T*(u*hlm - J.T*r))[0, 0]))
         if q > 0:
             s = 1.0 / 3.0
             v = 2
