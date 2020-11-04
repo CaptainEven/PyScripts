@@ -176,8 +176,10 @@ def undistort_img_and_statistics(img_path,
 
     dist /= float(pts_count)
     offset /= float(pts_count)
+
+    print('\nBefore optimization:')
     print('Mean dist: {:.3f}'.format(dist))
-    print('Offset: {:.3f}'.format(offset))
+    print('Mean offset: {:.3f}'.format(offset))
 
     # ---------- Do undistortion
     # ----- undistort image
@@ -221,8 +223,10 @@ def undistort_img_and_statistics(img_path,
     # ----------
     dist /= float(pts_count)
     offset /= float(pts_count)
-    print('Mean dist after optimization: {:.3f}'.format(dist))
-    print('Offset after optimization: {:.3f}'.format(offset))
+
+    print('\nAfter optimization:')
+    print('Mean dist: {:.3f}'.format(dist))
+    print('Mean offset: {:.3f}'.format(offset))
 
     cv2.imshow('origin', img_orig)
     cv2.imshow('undistort', img_undistort)
@@ -245,8 +249,8 @@ def TestUndistortOptimize():
     p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[0.1],
-                       [0.1]])  # k1k2
+    params = np.array([[0.01],
+                       [0.01]])  # k1k2
 
     # Input
     pts_on_curve_1 = [
@@ -304,8 +308,7 @@ def TestUndistortOptimize():
     # ----------
 
     # ---------- Undistort
-    undistort_img_and_statistics(
-        img_path, camera_intrinsics, pts_list, k1, k2, p1, p2)
+    undistort_img_and_statistics(img_path, camera_intrinsics, pts_list, k1, k2)
 
 
 def Func(params, fx, fy, cx, cy, pts_list):
