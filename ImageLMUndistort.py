@@ -235,7 +235,7 @@ def undistort_img_and_statistics(img_path,
 
 
 def TestUndistortOptimize():
-    img_path = './distorted.png'
+    img_path = './Distorted.png'
 
     fx = 458.654
     fy = 457.296
