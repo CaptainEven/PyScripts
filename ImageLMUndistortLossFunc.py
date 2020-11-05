@@ -248,7 +248,7 @@ def TestUndistortOptimize():
     # p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[-0.1],
+    params = np.array([[0.1],
                        [0.1]])  # k1k2
 
     # Input
