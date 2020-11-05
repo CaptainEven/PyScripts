@@ -157,9 +157,9 @@ def undistort_img(img_path,
         for pt in pts:
             x, y = pt
             dist += abs(A*x + B*y + C) / math.sqrt(A*A + B*B)
+
             y_est = k*x + b
             y_delta = abs(y - y_est)
-            # print(y_delta)
             offset += y_delta
 
         # Draw points and centroid
@@ -176,8 +176,10 @@ def undistort_img(img_path,
 
     dist /= float(pts_count)
     offset /= float(pts_count)
-    print('Mean dist: {:.3f}'.format(dist))
-    print('Offset: {:.3f}'.format(offset))
+
+    print('\nBefore LM optimization:')
+    print('Mean distance: {:.3f}'.format(dist))
+    print('Mean offset: {:.3f}'.format(offset))
 
     # ---------- Do undistortion
     # ----- undistort image
@@ -209,7 +211,6 @@ def undistort_img(img_path,
             dist += abs(A*x + B*y + C) / math.sqrt(A*A + B*B)
             y_est = k*x + b
             y_delta = abs(y - y_est)
-            # print(y_delta)
             offset += y_delta
 
         # Draw line of endpoints
@@ -221,8 +222,10 @@ def undistort_img(img_path,
     # ----------
     dist /= float(pts_count)
     offset /= float(pts_count)
-    print('Mean dist after optimization: {:.3f}'.format(dist))
-    print('Offset after optimization: {:.3f}'.format(offset))
+
+    print('\nAfter LM optimization:')
+    print('Mean distance: {:.3f}'.format(dist))
+    print('Mean Offset: {:.3f}'.format(offset))
 
     cv2.imshow('origin', img_orig)
     cv2.imshow('undistort', img_undistort)
@@ -245,8 +248,8 @@ def TestUndistortOptimize():
     # p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[-0.2],
-                       [0.2]])  # k1k2
+    params = np.array([[-0.1],
+                       [0.1]])  # k1k2
 
     # Input
     pts_on_curve_1 = [
@@ -262,7 +265,6 @@ def TestUndistortOptimize():
         [718, 91], [805, 91], [817, 91],
         [840, 91], [846, 91], [865, 92]
     ]
-    # pts_on_curve_1 = [[pt[0], pt[1]-40] for pt in pts_on_curve_1]
 
     pts_on_curve_2 = [
         [885, 102], [886, 115], [887, 127],
@@ -272,7 +274,6 @@ def TestUndistortOptimize():
         [896, 459], [895, 478], [894, 498],
         [893, 510]
     ]
-    # pts_on_curve_2 = [[pt[0], pt[1]-40] for pt in pts_on_curve_2]
 
     pts_on_curve_3 = [
         [324, 518], [353, 519], [379, 520],
@@ -285,7 +286,15 @@ def TestUndistortOptimize():
         [848, 523], [857, 522], [871, 522]
     ]
 
-    pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3]
+    pts_on_curve_4 = [
+        [313, 120], [313, 224], [313, 285],
+        [313, 308], [315, 375], [315, 391],
+        [316, 410], [316, 426], [317, 444],
+        [317, 457], [318, 468], [318, 485],
+        [319, 493], [319, 501], [320, 515]
+    ]
+
+    pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3, pts_on_curve_4]
 
     # ---------- Run LM optimization
     params = LM(params, camera_intrinsics, pts_list, max_iter=100)
@@ -316,7 +325,6 @@ def Func(params, fx, fy, cx, cy, pts_list):
 
         # compute k,b
         A, B, C, k, b = line_equation(X[0], Y[0], X[-1], Y[-1])
-        Y_est = k*X + b
 
         # using distance from point to line as loss
         dist = abs(A*X+B*Y+C) / np.sqrt(A*A+B*B)
@@ -325,10 +333,6 @@ def Func(params, fx, fy, cx, cy, pts_list):
             dist_all = dist.copy()
         else:
             dist_all = np.concatenate((dist_all, dist), axis=0)
-
-    # return Y_est_all, Y_all
-    # return Y_est_all - Y_all
-    # return (Y_est_all - Y_all) *  (Y_est_all - Y_all)
     
     return dist_all
 

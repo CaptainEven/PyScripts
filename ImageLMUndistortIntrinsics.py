@@ -289,7 +289,7 @@ def TestUndistortOptimize():
         [848, 523], [857, 522], [871, 522]
     ]
 
-    pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3]
+    pts_list = [pts_on_curve_1, pts_on_curve_3]
 
     # ---------- Run LM optimization
     params = LM(params, camera_intrinsics, pts_list, max_iter=100)
