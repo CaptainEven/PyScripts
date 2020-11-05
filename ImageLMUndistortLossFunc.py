@@ -231,79 +231,70 @@ def undistort_img(img_path,
 
 
 def TestUndistortOptimize():
-    img_path = './distorted.png'
+    img_path = './Image_l1.jpg'
 
-    fx = 458.654
-    fy = 457.296
-    cx = 367.215
-    cy = 248.375
+    fx = 1047.585
+    fy = 1051.205
+    cx = 473.7920
+    cy = 364.0780
     camera_intrinsics = [fx, fy, cx, cy]
 
-    k1 = -0.28340811
-    k2 = 0.07395907
-    p1 = 0.00019359
-    p2 = 1.76187114e-05
+    k1 = -0.43995
+    k2 = 0.272480
+    # p1 = 0.00019359
+    # p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[0.1],
-                       [0.1]])  # k1k2
+    params = np.array([[-0.2],
+                       [0.2]])  # k1k2
 
     # Input
     pts_on_curve_1 = [
-        [546, 20],  [545, 40],  [543, 83],
-        [536, 159], [535, 170], [534, 180],
-        [531, 200], [530, 211], [529, 218],
-        [526, 236], [524, 253], [521, 269],
-        [519, 281], [517, 293], [515, 302],
-        [514, 310], [512, 320], [510, 329],
-        [508, 341], [506, 353], [505, 357]
+        [320, 114], [331, 113], [352, 111],
+        [363, 110], [373, 109], [381, 108],
+        [402, 106], [410, 106], [427, 104],
+        [437, 103], [449, 102], [462, 101],
+        [478, 100], [482, 100], [494, 99],
+        [504, 98], [526, 97], [536, 97],
+        [562, 95], [579, 94], [588, 94],
+        [597, 94], [611, 93], [625, 93],
+        [650, 92], [660, 91], [689, 91],
+        [718, 91], [805, 91], [817, 91],
+        [840, 91], [846, 91], [865, 92]
     ]
+    # pts_on_curve_1 = [[pt[0], pt[1]-40] for pt in pts_on_curve_1]
 
     pts_on_curve_2 = [
-        [0, 383], [7, 388], [13, 392],
-        [38, 408], [49, 415], [58, 420],
-        [64, 424], [69, 427], [83, 434],
-        [95, 441], [108, 448], [123, 456],
-        [135, 462], [145, 467], [157, 473],
-        [167, 477], [170, 478], [172, 479]
+        [885, 102], [886, 115], [887, 127],
+        [888, 138], [889, 148], [890, 173],
+        [892, 211], [894, 263], [896, 312],
+        [895, 354], [896, 411], [896, 440],
+        [896, 459], [895, 478], [894, 498],
+        [893, 510]
     ]
+    # pts_on_curve_2 = [[pt[0], pt[1]-40] for pt in pts_on_curve_2]
 
     pts_on_curve_3 = [
-        [503, 377], [523, 379], [542, 382],
-        [552, 384], [562, 385], [572, 386],
-        [581, 387], [591, 388], [599, 389],
-        [609, 390], [617, 391], [625, 391],
-        [631, 391], [639, 392], [646, 392],
-        [654, 393], [661, 394], [668, 395],
-        [674, 395], [681, 396], [686, 396],
-        [693, 397], [699, 397], [706, 398],
-        [712, 398], [720, 399], [726, 399],
-        [734, 401], [742, 401], [747, 402], [750, 402]
+        [324, 518], [353, 519], [379, 520],
+        [391, 521], [402, 522], [419, 522],
+        [434, 523], [450, 523], [465, 524],
+        [482, 524], [507, 524], [524, 525],
+        [557, 525], [583, 526], [711, 526],
+        [739, 525], [753, 525], [763, 525],
+        [773, 524], [790, 524], [837, 523],
+        [848, 523], [857, 522], [871, 522]
     ]
 
-    pts_on_curve_4 =[
-        [719, 49], [719, 58], [718, 67],
-        [717, 77], [716, 87], [715, 97],
-        [714, 106], [713, 118], [711, 128],
-        [709, 140], [708, 151], [706, 162],
-        [704, 171], [702, 181], [701, 189],
-        [699, 198], [697, 207], [695, 216],
-        [693, 225], [691, 234], [689, 241],
-        [687, 250], [685, 257], [682, 271],
-        [678, 283], [675, 293], [673, 301],
-        [669, 314], [665, 325], [659, 343],
-        [649, 370], [645, 378]
-    ]
-    pts_list = [pts_on_curve_1, pts_on_curve_3]
+    pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3]
 
     # ---------- Run LM optimization
-    params = LM(params, pts_list, max_iter=100)
+    params = LM(params, camera_intrinsics, pts_list, max_iter=100)
     k1 = params[0][0]
     k2 = params[1][0]
     # ----------
 
     # ---------- Undistort
-    undistort_img(img_path, camera_intrinsics, pts_list, k1, k2, p1, p2)
+    undistort_img(img_path, camera_intrinsics, pts_list, k1, k2)
 
 
 def Func(params, fx, fy, cx, cy, pts_list):
@@ -327,18 +318,12 @@ def Func(params, fx, fy, cx, cy, pts_list):
         A, B, C, k, b = line_equation(X[0], Y[0], X[-1], Y[-1])
         Y_est = k*X + b
 
-        # 调到至西安的距离作为损失函数
+        # using distance from point to line as loss
         dist = abs(A*X+B*Y+C) / np.sqrt(A*A+B*B)
 
         if i == 0:
-            # Y_est_all = Y_est.copy()
-            # Y_all = Y.copy()
-            # X_all = X.copy()
             dist_all = dist.copy()
         else:
-            # Y_est_all = np.concatenate((Y_est_all, Y_est), axis=0)
-            # Y_all = np.concatenate((Y_all, Y), axis=0)
-            # X_all = np.concatenate((X_all, X), axis=0)
             dist_all = np.concatenate((dist_all, dist), axis=0)
 
     # return Y_est_all, Y_all
@@ -363,8 +348,7 @@ def Deriv(params, fx, fy, cx, cy, pts_list, i):
     # compute y_est_2
     r2 = Func(params_delta_2, fx, fy, cx, cy, pts_list)
 
-    # deriv = (y_est_2 - y_est_1) * 1.0 / (0.000002)
-    deriv = (r1 - r2) * 1.0 / (0.000002)
+    deriv = -(r2 - r1) * 1.0 / (0.000002)
 
     return deriv
 
@@ -416,15 +400,15 @@ def line_equation(x1, y1, x2, y2):
     # return k, b
 
 
-def LM(params, pts_list, max_iter=100):
+def LM(params, camera_intrinsics, pts_list, max_iter=100):
     """
     @params: numpy array
     """
     # Known parameters(camera intrinsics)
-    fx = 458.654
-    fy = 457.296
-    cx = 367.215
-    cy = 248.375
+    fx = camera_intrinsics[0]
+    fy = camera_intrinsics[1]
+    cx = camera_intrinsics[2]
+    cy = camera_intrinsics[3]
 
     # count points
     pts_num_list = [len(x) for x in pts_list]
@@ -492,21 +476,5 @@ def LM(params, pts_list, max_iter=100):
     return params
 
 
-def TestLM():
-    """
-    """
-    # k1 = -0.28340811
-    # k2 = 0.07395907
-
-    k1 = 0.1
-    k2 = 0.1
-
-    k1k2 = np.array([[k1],
-                     [k2]])
-
-    LM(k1k2, max_iter=100)
-
-
 if __name__ == "__main__":
     TestUndistortOptimize()
-    # TestLM()

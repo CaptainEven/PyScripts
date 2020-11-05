@@ -137,7 +137,10 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir):
 
                 # 绘制object
                 cls_color = cls_color_dict[class_type]
-                cv2.rectangle(img, (x1, y1), (x2, y2), cls_color, line_thickness)
+                cv2.rectangle(img,
+                              (x1, y1),
+                              (x2, y2),
+                              cls_color, line_thickness)
                 cv2.putText(img,
                             class_type + str(track_id),
                             (x1, y1),
@@ -150,6 +153,83 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir):
             img_path_out = viz_dir + '/' + img_name
             cv2.imwrite(img_path_out, img)
             print('{} written.'.format(img_path_out))
+
+
+def process_labeling(data_root):
+    """
+    处理标注团队的视频标注
+    标注工具darklabel
+    """
+    if not os.path.isdir(data_root):
+        print('[Err]: invalid data root.')
+        return
+
+    # 创建图片目录和标签目录
+    image_root = data_root + '/images'
+    label_root = data_root + '/labels_with_ids'
+    if not os.path.isdir(image_root):
+        os.makedirs(image_root)
+    else:
+        shutil.rmtree(image_root)
+        os.makedirs(image_root)
+
+    if not os.path.isdir(label_root):
+        os.makedirs(label_root)
+    else:
+        shutil.rmtree(label_root)
+        os.makedirs(label_root)
+
+    video_names = [x for x in os.listdir(data_root) if x.endswith('.mp4')]
+    for video in video_names:
+        video_path = data_root + '/' + video
+        if not os.path.isfile(video_path):
+            print('[Warning]: invalid video path.')
+            continue
+
+        txt_name = video.replace('.mp4', '.txt')
+        prefix, suffix = txt_name.split('.')
+        txt_path = data_root + '/' + prefix + '_gt' + '.' + suffix
+        if not os.path.isfile(txt_path):
+            print('[Warning]: invalid txt label')
+            continue
+
+        # 创建image dir并生成图片
+        img_dir = image_root + '/' + prefix
+        if not os.path.isdir(img_dir):
+            os.makedirs(img_dir)
+        else:
+            shutil.rmtree(img_dir)
+            os.makedirs(img_dir)
+
+        cap = cv2.VideoCapture(video_path)
+
+        print('\nProcessing video %s' % video)
+        FRAME_NUM = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # 获取视频所有帧数
+        print('Total {:d} frames'.format(FRAME_NUM))
+
+        if FRAME_NUM == 0:
+            break
+
+        for i in range(FRAME_NUM):
+            success, frame = cap.read()
+            if not success:  # 判断当前帧是否存在
+                break
+
+            # 写入图片
+            img_path = img_dir + '/' + '{:05d}.jpg'.format(i)
+            cv2.imwrite(img_path, frame)
+
+        # 根据darklabel标注的标签, 可视化图片
+        viz_dir = 'e:/{:s}_viz'.format(prefix)
+        viz_dark_label(img_dir, txt_path, viz_dir)
+
+        # 可视化视频
+        out_video_path = 'e:/{:s}_viz.mp4'.format(prefix)
+        cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'. \
+            format(viz_dir, out_video_path)
+        os.system(cmd_str)
+
+        print('{:s} done.'.format(prefix))
 
 
 def dark_label2mcmot_label(data_root, viz_root=None):
@@ -383,7 +463,8 @@ def cvt_dl_format_2(lb_f_path):
                     h = int(line[cur + 4])
                     cls_name = str(line[cur + 5])
 
-                    obj = [track_id, str(x1), str(y1), str(x1+w), str(y1+h), cls_name]
+                    obj = [track_id, str(x1), str(y1), str(
+                        x1+w), str(y1+h), cls_name]
                     objs.append(obj)
 
                 assert(len(objs) == n_objs)
@@ -508,7 +589,7 @@ def cvt_dl_format_4(lb_f_path):
 
 
 if __name__ == '__main__':
-    dark_label2mcmot_label(data_root='f:/seq_data', viz_root=None)
+    # dark_label2mcmot_label(data_root='f:/seq_data', viz_root=None)
 
     # cvt_dl_format_4(lb_f_path='f:/seq_data/images/mcmot_seq_imgs_25/mcmot_seq_imgs_25_gt.txt')
     # cvt_dl_format_2(lb_f_path='F:/seq_data/seq_28_gt.txt')
@@ -532,12 +613,14 @@ if __name__ == '__main__':
     # viz_dark_label(img_dir='f:/seq_data/images/mcmot_seq_imgs_28',
     #                txt_label_f_path='f:/seq_data/images/mcmot_seq_imgs_28/mcmot_seq_imgs_28_gt.txt',
     #                viz_dir='e:/viz_result_28')
-    
+
     # time.sleep(1.0)
 
     # viz_dir = 'e:/viz_result_28'
     # out_video_path = 'e:/seq_28_viz.mp4'
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
+
+    process_labeling(data_root='f:/val_seq')
 
     print('\nDone.')

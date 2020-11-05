@@ -133,6 +133,8 @@ def undistort_img_and_statistics(img_path,
         return
 
     img_orig = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+    # cv2.imshow('Origin', img_orig)
+    # cv2.waitKey(3000)
 
     if is_color:
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
@@ -230,7 +232,6 @@ def undistort_img_and_statistics(img_path,
 
     cv2.imshow('origin', img_orig)
     cv2.imshow('undistort', img_undistort)
-
     cv2.waitKey()
 
 
@@ -245,8 +246,8 @@ def TestUndistortOptimize():
 
     k1 = -0.28340811
     k2 = 0.07395907
-    p1 = 0.00019359
-    p2 = 1.76187114e-05
+    # p1 = 0.00019359
+    # p2 = 1.76187114e-05
 
     # Init parameters to be optimized
     params = np.array([[0.01],
@@ -302,7 +303,7 @@ def TestUndistortOptimize():
     pts_list = [pts_on_curve_1, pts_on_curve_3]
 
     # ---------- Run LM optimization
-    params = LM(params, pts_list, max_iter=100)
+    params = LM(params, camera_intrinsics, pts_list, max_iter=100)
     k1 = params[0][0]
     k2 = params[1][0]
     # ----------
@@ -409,15 +410,15 @@ def line_equation(x1, y1, x2, y2):
     # return k, b
 
 
-def LM(params, pts_list, max_iter=100):
+def LM(params, camera_intrinsics, pts_list, max_iter=100):
     """
     @params: numpy array
     """
     # Known parameters(camera intrinsics)
-    fx = 458.654
-    fy = 457.296
-    cx = 367.215
-    cy = 248.375
+    fx = camera_intrinsics[0]
+    fy = camera_intrinsics[1]
+    cx = camera_intrinsics[2]
+    cy = camera_intrinsics[3]
 
     # count points
     pts_num_list = [len(x) for x in pts_list]

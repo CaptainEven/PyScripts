@@ -134,17 +134,18 @@ def undistort_img_and_statistics(img_path,
 
     img_orig = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
 
-    if is_color:
-        img_orig = img_orig[40:, :, :]
-    else:
-        img_orig = img_orig[40:, :]
+    # # 截取非字幕部分
+    # if is_color:
+    #     img_orig = img_orig[40:, :, :]
+    # else:
+    #     img_orig = img_orig[40:, :]
 
     if is_color:
         img = cv2.imread(img_path, cv2.IMREAD_COLOR)
-        img = img[40:, :, :]
+        # img = img[40:, :, :]
     else:
         img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-        img = img[40:, :]
+        # img = img[40:, :]
 
     if img is None:
         print('[Err]: empty image.')
@@ -234,52 +235,64 @@ def undistort_img_and_statistics(img_path,
 
 
 def TestUndistortOptimize():
-    img_path = './DistortedImages/11_3014.jpg'
+    img_path = './Image_l1.jpg'
 
-    fx = 3014.00
-    fy = 3014.00
-    cx = 1280.00
-    cy = 720.000
+    fx = 1047.585
+    fy = 1051.205
+    cx = 473.7920
+    cy = 364.0780
     camera_intrinsics = [fx, fy, cx, cy]
 
-    k1 = -0.28340811
-    k2 = 0.07395907
-    p1 = 0.00019359
-    p2 = 1.76187114e-05
+    k1 = -0.43995
+    k2 = 0.272480
+    # p1 = 0.00019359
+    # p2 = 1.76187114e-05
 
     # Init parameters to be optimized
-    params = np.array([[0.1],
-                       [0.1]])  # k1k2
+    params = np.array([[-0.2],
+                       [0.2]])  # k1k2
 
     # Input
     pts_on_curve_1 = [
-        [1144, 489], [1156, 495], [1169, 502],
-        [1183, 510], [1185, 511], [1201, 519],
-        [1206, 522], [1223, 530], [1225, 531],
-        [1242, 540], [1255, 547], [1285, 562],
-        [1312, 575], [1326, 582], [1334, 586],
-        [1377, 607], [1419, 627], [1461, 646],
-        [1508, 670], [1530, 681], [1534, 682],
-        [1763, 802], [1779, 811], [1861, 855],
-        [1873, 862], [1886, 869], [1917, 886],
-        [1948, 902], [1977, 918], [2018, 940]
+        [320, 114], [331, 113], [352, 111],
+        [363, 110], [373, 109], [381, 108],
+        [402, 106], [410, 106], [427, 104],
+        [437, 103], [449, 102], [462, 101],
+        [478, 100], [482, 100], [494, 99],
+        [504, 98], [526, 97], [536, 97],
+        [562, 95], [579, 94], [588, 94],
+        [597, 94], [611, 93], [625, 93],
+        [650, 92], [660, 91], [689, 91],
+        [718, 91], [805, 91], [817, 91],
+        [840, 91], [846, 91], [865, 92]
     ]
-    pts_on_curve_1 = [[pt[0], pt[1]-40] for pt in pts_on_curve_1]
+    # pts_on_curve_1 = [[pt[0], pt[1]-40] for pt in pts_on_curve_1]
 
-    # pts_on_curve_2 = [
-    #     [653, 269], [663, 267], [672, 264],
-    #     [679, 263], [685, 262], [694, 259],
-    #     [698, 258], [708, 256], [717, 254],
-    #     [727, 253], [730, 251], [742, 248],
-    #     [746, 247], [760, 244], [766, 243],
-    #     [775, 240], [783, 238], [789, 237]
-    # ]
+    pts_on_curve_2 = [
+        [885, 102], [886, 115], [887, 127],
+        [888, 138], [889, 148], [890, 173],
+        [892, 211], [894, 263], [896, 312],
+        [895, 354], [896, 411], [896, 440],
+        [896, 459], [895, 478], [894, 498],
+        [893, 510]
+    ]
     # pts_on_curve_2 = [[pt[0], pt[1]-40] for pt in pts_on_curve_2]
 
-    pts_list = [pts_on_curve_1]
+    pts_on_curve_3 = [
+        [324, 518], [353, 519], [379, 520],
+        [391, 521], [402, 522], [419, 522],
+        [434, 523], [450, 523], [465, 524],
+        [482, 524], [507, 524], [524, 525],
+        [557, 525], [583, 526], [711, 526],
+        [739, 525], [753, 525], [763, 525],
+        [773, 524], [790, 524], [837, 523],
+        [848, 523], [857, 522], [871, 522]
+    ]
+
+    pts_list = [pts_on_curve_1, pts_on_curve_2, pts_on_curve_3]
 
     # ---------- Run LM optimization
-    params = LM(params, pts_list, max_iter=100)
+    params = LM(params, camera_intrinsics, pts_list, max_iter=100)
     k1 = params[0][0]
     k2 = params[1][0]
     # ----------
@@ -386,15 +399,15 @@ def line_equation(x1, y1, x2, y2):
     # return k, b
 
 
-def LM(params, pts_list, max_iter=100):
+def LM(params, camera_intrinsics, pts_list, max_iter=100):
     """
     @params: numpy array
     """
     # Known parameters(camera intrinsics)
-    fx = 458.654
-    fy = 457.296
-    cx = 367.215
-    cy = 248.375
+    fx = camera_intrinsics[0]
+    fy = camera_intrinsics[1]
+    cx = camera_intrinsics[2]
+    cy = camera_intrinsics[3]
 
     # count points
     pts_num_list = [len(x) for x in pts_list]
@@ -449,8 +462,8 @@ def LM(params, pts_list, max_iter=100):
             v = 2*v
             params = params_tmp
 
-        print("step = %d,abs(mse-lase_mse) = %.8f" %
-              (step, abs(mse - last_mse)))
+        print("step = %d,abs(mse-lase_mse) = %.5f, mse=%.5f" %
+              (step, abs(mse - last_mse), mse))
         print('parameters:\n', params)
 
         if abs(mse - last_mse) < 0.001:  # 0.000001
@@ -464,21 +477,5 @@ def LM(params, pts_list, max_iter=100):
     return params
 
 
-def TestLM():
-    """
-    """
-    # k1 = -0.28340811
-    # k2 = 0.07395907
-
-    k1 = 0.1
-    k2 = 0.1
-
-    k1k2 = np.array([[k1],
-                     [k2]])
-
-    LM(k1k2, max_iter=100)
-
-
 if __name__ == "__main__":
     TestUndistortOptimize()
-    # TestLM()
