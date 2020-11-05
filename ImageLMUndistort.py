@@ -488,21 +488,5 @@ def LM(params, camera_intrinsics, pts_list, max_iter=100):
     return params
 
 
-def TestLM():
-    """
-    """
-    # k1 = -0.28340811
-    # k2 = 0.07395907
-
-    k1 = 0.1
-    k2 = 0.1
-
-    k1k2 = np.array([[k1],
-                     [k2]])
-
-    LM(k1k2, max_iter=100)
-
-
 if __name__ == "__main__":
     TestUndistortOptimize()
-    # TestLM()
