@@ -75,7 +75,7 @@ cls_color_dict = {
 }
 
 
-def viz_dark_label(img_dir, txt_label_f_path, viz_dir):
+def viz_dark_label(img_dir, txt_label_f_path, viz_dir, one_plus=True):
     """
     可视化dark label的标注结果
     """
@@ -120,7 +120,10 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir):
                 class_id = cls2id[class_type]  # class type => class id
 
                 # 解析track id
-                track_id = int(line[cur]) + 1  # track_id从1开始统计
+                if one_plus:
+                    track_id = int(line[cur]) + 1  # track_id从1开始统计
+                else:
+                    track_id = int(line[cur])
 
                 x1, y1 = int(line[cur + 1]), int(line[cur + 2])
                 x2, y2 = int(line[cur + 3]), int(line[cur + 4])
@@ -155,7 +158,7 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir):
             print('{} written.'.format(img_path_out))
 
 
-def process_labeling(data_root):
+def process_labeling(data_root, one_plus=True):
     """
     处理标注团队的视频标注
     标注工具darklabel
@@ -210,6 +213,7 @@ def process_labeling(data_root):
         if FRAME_NUM == 0:
             break
 
+        # 写入每一帧
         for i in range(FRAME_NUM):
             success, frame = cap.read()
             if not success:  # 判断当前帧是否存在
@@ -221,7 +225,7 @@ def process_labeling(data_root):
 
         # 根据darklabel标注的标签, 可视化图片
         viz_dir = 'e:/{:s}_viz'.format(prefix)
-        viz_dark_label(img_dir, txt_path, viz_dir)
+        viz_dark_label(img_dir, txt_path, viz_dir, one_plus)
 
         # 可视化视频
         out_video_path = 'e:/{:s}_viz.mp4'.format(prefix)
@@ -625,6 +629,6 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='f:/val_seq')
+    process_labeling(data_root='f:/val_seq', one_plus=False)
 
     print('\nDone.')
