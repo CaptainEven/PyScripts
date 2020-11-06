@@ -4,14 +4,14 @@ import os
 import cv2
 
 # name of the video file to convert
-input_path = os.path.abspath('f:/test5_track.mp4')
+input_path = os.path.abspath('f:/uav_339_track.mp4')
 
 # targetFormat must be .gif
 
 
 def ToGif(input_path,
           target_format,
-          num_frames=128,         # max frame number 
+          num_frames=60,         # max frame number 
           out_size=(640, 360)):  # (640, 360), (854, 480), (1920, 1080)
     """
     转换成gif格式

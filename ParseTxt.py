@@ -232,7 +232,7 @@ def process_labeling(data_root):
         print('{:s} done.'.format(prefix))
 
 
-def dark_label2mcmot_label(data_root, viz_root=None):
+def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
     """
     将DarkLabel的标注格式: frame# n_obj [id, x1, y1, x2, y2, label]
     转化为MCMOT的输入格式:
@@ -309,7 +309,10 @@ def dark_label2mcmot_label(data_root, viz_root=None):
                     class_id = cls2id[class_type]  # class type => class id
 
                     # 解析track id
-                    track_id = int(line[cur]) + 1  # track_id从1开始统计
+                    if one_plus:
+                        track_id = int(line[cur]) + 1  # track_id从1开始统计
+                    else:
+                        track_id = int(line[cur])
 
                     # 更新该视频seq各类检测目标(背景一直为0)的max track id
                     if track_id > seq_max_id_dict[class_type]:
@@ -589,7 +592,8 @@ def cvt_dl_format_4(lb_f_path):
 
 
 if __name__ == '__main__':
-    # dark_label2mcmot_label(data_root='f:/seq_data', viz_root=None)
+    # dark_label2mcmot_label(data_root='f:/seq_data', one_plus=True, viz_root=None)
+    # dark_label2mcmot_label(data_root='f:/val_seq', one_plus=False, viz_root=None)
 
     # cvt_dl_format_4(lb_f_path='f:/seq_data/images/mcmot_seq_imgs_25/mcmot_seq_imgs_25_gt.txt')
     # cvt_dl_format_2(lb_f_path='F:/seq_data/seq_28_gt.txt')
