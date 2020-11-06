@@ -183,6 +183,7 @@ def process_labeling(data_root, one_plus=True):
         os.makedirs(label_root)
 
     video_names = [x for x in os.listdir(data_root) if x.endswith('.mp4')]
+    video_names.sort()
     for video in video_names:
         video_path = data_root + '/' + video
         if not os.path.isfile(video_path):
