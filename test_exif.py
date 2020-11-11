@@ -1,6 +1,7 @@
 # encoding=utf-8
 
 # from exif import EXIF
+import os
 import exifread
 SENSOR = os.path.join(abspath, 'data', 'sensor_data.json')
 
@@ -168,7 +169,7 @@ def extract_focal(tags):
     return focal_35, focal_ratio
 
 
-file_path = 'f:/tmp/00000.jpg'
+file_path = 'F:/MVE/apps/sfmrecon/imgs/0000.png'
 with open(file_path, 'rb') as f_h:
     # exif = EXIF(f_h)
 

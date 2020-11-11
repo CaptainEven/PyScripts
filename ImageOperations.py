@@ -86,9 +86,33 @@ def test_png_format_mask():
     print('Instance ID: ', obj_instance_id)
 
 
+def cvt_jpg_to_png(img_dir):
+    """
+    """
+    if not os.path.isdir(img_dir):
+        print('[Err]: invalid image directory.')
+        return
+
+    jpg_names = [x for x in os.listdir(img_dir) if x.endswith('.jpg')]
+    for jpg_name in jpg_names:
+        jpg_path = img_dir + '/' + jpg_name
+        png_path = img_dir + '/' + jpg_name[:-4] + '.png'
+
+        # read in jpg img
+        img = cv2.imread(jpg_path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            continue
+
+        cv2.imwrite(png_path, img)
+        os.remove(jpg_path)
+        print('{:s} converted to {:s}.'.format(jpg_name, png_path))
+
+
 if __name__ == '__main__':
     # test_png_format_mask()
     
-    test_rle_decode()
+    # test_rle_decode()
+
+    cvt_jpg_to_png(img_dir='F:/MVE/mve_build/apps/dog')
 
     print('Done.')
