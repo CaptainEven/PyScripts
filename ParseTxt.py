@@ -294,6 +294,9 @@ def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
         for class_type in classes:
             seq_max_id_dict[class_type] = 0
 
+        # 记录当前seq各个类别的track id集合
+        id_set_dict = defaultdict(set)
+
         # 读取dark label(读取该视频seq的标注文件, 一行代表一帧)
         with open(dark_txt_path, 'r', encoding='utf-8') as r_h:
             # 读视频标注文件的每一行: 每一行即一帧
@@ -322,6 +325,9 @@ def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
                     # 更新该视频seq各类检测目标(背景一直为0)的max track id
                     if track_id > seq_max_id_dict[class_type]:
                         seq_max_id_dict[class_type] = track_id
+
+                    # 记录当前seq各个类别的track id集合
+                    id_set_dict[class_type].add(track_id)
 
                     # 根据起始track id更新在整个数据集中的实际track id
                     track_id += start_id_dict[class_type]
@@ -353,9 +359,7 @@ def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
                     bbox_height /= H
 
                     # 打印中间结果, 验证是否解析正确...
-                    print(track_id, x1, y1, x2, y2, class_type)
-                    # if 14 == track_id:
-                    #     print('pause here')
+                    # print(track_id, x1, y1, x2, y2, class_type)
 
                     # 每一帧对应的label中的每一行
                     obj_str = '{:d} {:d} {:.6f} {:.6f} {:.6f} {:.6f}\n'.format(
@@ -373,16 +377,28 @@ def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
                 with open(label_f_path, 'w', encoding='utf-8') as w_h:
                     for obj in fr_label_objs:
                         w_h.write(obj)
-                print('{} written\n'.format(label_f_path))
+                # print('{} written\n'.format(label_f_path))
 
         # 输出该视频seq各个检测类别的max track id(从1开始)
         for k, v in seq_max_id_dict.items():
             print('seq {}'.format(seq_name) + ' ' +
                   k + ' max track id {:d}'.format(v))
 
-        # 处理完成一个视频seq, 更新各类别start track id
+             # 输出当前seq各个类别的track id数(独一无二的id个数)
+            cls_id_set = id_set_dict[k] 
+            print('seq {}'.format(seq_name) + ' ' +
+                  k + ' track id number {:d}'.format(len(cls_id_set)))
+            
+            if len(cls_id_set) != v:
+                print(cls_id_set)
+
+        # 处理完成一个视频seq, 基于seq_max_id_dict, 更新各类别start track id
+        # for k, v in start_id_dict.items():
+        #     start_id_dict[k] += seq_max_id_dict[k]
+
+        # 处理完成一个视频seq, 基于id_set_dict, 更新各类别start track id
         for k, v in start_id_dict.items():
-            start_id_dict[k] += seq_max_id_dict[k]
+            start_id_dict[k] += len(id_set_dict[k])
 
     # 输出所有视频seq各个检测类别的track id总数
     print('\n')
@@ -597,7 +613,7 @@ def cvt_dl_format_4(lb_f_path):
 
 
 if __name__ == '__main__':
-    # dark_label2mcmot_label(data_root='f:/seq_data', one_plus=True, viz_root=None)
+    dark_label2mcmot_label(data_root='f:/seq_data', one_plus=True, viz_root=None)
     # dark_label2mcmot_label(data_root='f:/val_seq', one_plus=False, viz_root=None)
 
     # cvt_dl_format_4(lb_f_path='f:/seq_data/images/mcmot_seq_imgs_25/mcmot_seq_imgs_25_gt.txt')
@@ -630,6 +646,6 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='f:/val_seq', one_plus=False)
+    # process_labeling(data_root='F:/seq_label_2', one_plus=True)
 
     print('\nDone.')
