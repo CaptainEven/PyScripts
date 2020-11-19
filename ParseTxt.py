@@ -664,7 +664,7 @@ def cvt_dl_format_4(lb_f_path):
 
 
 if __name__ == '__main__':
-    # dark_label2mcmot_label(data_root='f:/seq_data', one_plus=True, viz_root=None)
+    dark_label2mcmot_label(data_root='f:/seq_data', one_plus=True, viz_root=None)
     # dark_label2mcmot_label(data_root='f:/val_seq', one_plus=False, viz_root=None)
 
     # cvt_dl_format_4(lb_f_path='f:/seq_data/images/mcmot_seq_imgs_25/mcmot_seq_imgs_25_gt.txt')
@@ -697,6 +697,6 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='F:/seq_label_2', one_plus=True)
+    # process_labeling(data_root='F:/seq_label_3', one_plus=True)
 
     print('\nDone.')
