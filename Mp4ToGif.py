@@ -1,5 +1,6 @@
 # encoding=utf-8
 import imageio
+import argparse
 import os
 import cv2
 
@@ -16,8 +17,7 @@ def ToGif(input_path,
     """
     转换成gif格式
     """
-    output_path = os.path.splitext(
-        input_path)[0] + target_format  # 'codeblog', 'mp4'
+    output_path = os.path.splitext(input_path)[0] + target_format  # 'codeblog', 'mp4'
     print('converting ', input_path, ' to ', output_path)
 
     # -----
@@ -37,7 +37,7 @@ def ToGif(input_path,
     print("Converting done.")
 
 
-ToGif(input_path, '.gif')
+# ToGif(input_path, '.gif')
 
 
 if __name__ == '__main__':
@@ -52,6 +52,6 @@ if __name__ == '__main__':
                         help='Number of frames to be processed.')
 
     opt = parser.parse_args()
-    
-    ToGif(opt.video, opt.frames)
+
+    ToGif(opt.video, '.gif', opt.frames)
     
