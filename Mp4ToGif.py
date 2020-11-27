@@ -6,7 +6,6 @@ import cv2
 
 # name of the video file to convert
 input_path = os.path.abspath('f:/MVI_40855_track_fps12.mp4')
-
 # targetFormat must be .gif
 
 
