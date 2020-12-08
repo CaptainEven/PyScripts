@@ -108,11 +108,44 @@ def cvt_jpg_to_png(img_dir):
         print('{:s} converted to {:s}.'.format(jpg_name, png_path))
 
 
+
+def test():
+    img_path = './humin.jpg'
+    if not os.path.isfile(img_path):
+        print('[Err]: invalid image path.')
+        return
+
+    img = cv2.imread(img_path)  # HWC
+    if img is None:
+        print('[Warning]: empty image.')
+        return
+
+    print(img[418, 0, 0])
+    print(img[419, 0, 0])
+    print(img[420, 0, 0])
+
+    img_remain = img[420: 420+1080, :, :]
+    print(img_remain.shape)
+
+    img_rs = cv2.resize(img_remain, (472, 472), interpolation=cv2.INTER_CUBIC)
+    img_rt = img_rs[:, 59: 59+354, :]
+    print(img_rt.shape)
+
+    # inds = np.where(img > 1.0)
+    # img_remain = img[inds]
+    # cv2.imshow('remain', img_rt)
+    # cv2.waitKey()
+
+    cv2.imwrite('./humin_.jpg', img_rt)
+
+
 if __name__ == '__main__':
     # test_png_format_mask()
     
     # test_rle_decode()
 
-    cvt_jpg_to_png(img_dir='F:/MVE/mve_build/apps/dog')
+    # cvt_jpg_to_png(img_dir='F:/MVE/mve_build/apps/dog')
+
+    test()
 
     print('Done.')

@@ -1,9 +1,9 @@
+# encoding=utf-8
+
 import sys
 import os
-
 import cv2
 import json
-
 import retinex
 
 path = os.path.dirname(__file__) if len(os.path.dirname(__file__)) != 0 else '.'
