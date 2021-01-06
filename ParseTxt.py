@@ -283,6 +283,12 @@ def process_labeling(data_root, one_plus=True):
         os.system(cmd_str)
         print('Generating viz video done.')
 
+        # 拷贝gt label到图像目录
+        img_dir_gt_path = img_dir + '/' + os.path.split(txt_path)[-1]
+        if not os.path.isfile(img_dir_gt_path):
+            shutil.copy(txt_path, img_dir)
+            print('{} cp to {}.'.format(txt_path, img_dir))
+
         print('{:s} done.\n'.format(prefix))
 
     # --------- 输出所有视频seq各个检测类别的track id总数
