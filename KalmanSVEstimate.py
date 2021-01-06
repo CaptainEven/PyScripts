@@ -82,17 +82,27 @@ I = np.eye(n[0], n[1])         # 单位矩阵
 # print('I:', I)
 
 # Kalman迭代过程
-for i in range(9, N):
+for i in range(1, N):
+    # --------- predict
     # t-1 到 t时刻的状态预测，得到前验概率
-    x_hat_minus[i] = A.dot(x_hat[i - 1]) + B * g  # (1).状态转移方程
-    P_minus = A.dot(P).dot(A.T) + Q               # (2).误差转移方程
+    # (1).状态转移方程
+    x_hat_minus[i] = A.dot(x_hat[i - 1]) + B * g  
 
+    # (2).误差转移方程
+    # P_minus = A.dot(P).dot(A.T) + Q  
+    P_minus = np.linalg.multi_dot((A, P, A.T)) + Q             
+
+    # ---------- update
     # 根据观察量对预测状态进行修正，得到后验概率，也就是最优值
-    K = P_minus.dot(H.T).dot(np.linalg.inv(H.dot(P_minus).dot(H.T) + R))          # (3).Kalman增益
+    # (3).Kalman增益
+    K = P_minus.dot(H.T).dot(np.linalg.inv(H.dot(P_minus).dot(H.T) + R))          
     print('\n--Round %d K:\n' % i, K)
+
+    # (4).状态修正方程
     x_hat[i] = x_hat_minus[i] + \
         K.dot(np.array([S_meas[i], V_meas[i]]) -
-              H.dot(x_hat_minus[i]))  # (4).状态修正方程
+              H.dot(x_hat_minus[i]))  
+
     # (5).误差修正方程
     # P = (I - K.dot(H)).dot(P_minus)
     print(K.dot(H))
@@ -110,7 +120,7 @@ plt.plot(V_meas, 'm+', label='measured velocity')   # 测量速率值
 plt.plot(S_estimate, 'b-', label='estimated shift')    # 估计位移值
 plt.plot(V_estimate, 'b-', label='estimated velocity')  # 估计速率值
 plt.plot(shift_real, 'y-', label='real shift')         # 真实位移值
-plt.plot(velosity_real, 'g-', label='real velocity')   # 真实速率值
+plt.plot(velosity_real, 'y-', label='real velocity')   # 真实速率值
 plt.legend()
 plt.title('Kalman filter')
 plt.xlabel('Iteration')

@@ -106,14 +106,15 @@ def kalmanTC(img_path, tc_id):
         # ---------- update phase: data fusion
         # correct and update
         # (3).Kalman's gain                       # 卡尔曼增益
-        K = P_minus.dot(H).dot(np.linalg.inv(H.dot(P_minus).dot(H.T) + R))     
+        K = P_minus.dot(H.T).dot(np.linalg.inv(H.dot(P_minus).dot(H.T) + R))     
         print('\n--Round %d K:\n' % i, K)
 
         # (4).state correction equation           # 状态更新方程
         x_hat[i] = x_hat_minus[i] + K.dot(x_measure[i] - H.dot(x_hat_minus[i]))  
 
         # (5).error correction equation           # 误差更新方程
-        P = (I - K.dot(H)).dot(P_minus)                                                  
+        # P = (I - K.dot(H)).dot(P_minus)  
+        P = P_minus - K.dot(H).dot(P_minus)                                                
         print('--Round %d P:\n' % i, P)
 
     # get x and y 's estimate
