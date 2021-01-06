@@ -276,10 +276,12 @@ def process_labeling(data_root, one_plus=True):
         print('Visualizing done.')
 
         # 可视化视频
+        print('Start generating viz video...')
         out_video_path = 'e:/{:s}_viz.mp4'.format(prefix)
         cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'. \
             format(viz_dir, out_video_path)
         os.system(cmd_str)
+        print('Generating viz video done.')
 
         print('{:s} done.\n'.format(prefix))
 
