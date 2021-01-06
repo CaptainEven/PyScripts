@@ -6,6 +6,7 @@ import shutil
 import re
 import cv2
 from collections import defaultdict
+from tqdm import tqdm
 
 
 # ----------
@@ -64,7 +65,8 @@ id2cls = {
 # ----------
 
 # 图片数据的宽高
-W, H = 1920, 1080
+global W, H
+W, H = -1, -1
 
 cls_color_dict = {
     'car': [180, 105, 255],        # hot pink
@@ -79,6 +81,11 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir, one_plus=True):
     """
     可视化dark label的标注结果
     """
+    global W, H
+    if W < 0 or H < 0:
+        print('[Err]: wrong image WH.')
+        return
+
     if not os.path.isdir(img_dir):
         print('[Err]: invalid image directory.')
         return
@@ -97,7 +104,7 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir, one_plus=True):
     # 读取dark label(读取该视频seq的标注文件, 一行代表一帧)
     with open(txt_label_f_path, 'r', encoding='utf-8') as r_h:
         # 读视频标注文件的每一行: 每一行即一帧
-        for line in r_h.readlines():
+        for line in tqdm(r_h.readlines()):
             line = line.split(',')
             f_id = int(line[0])
             n_objs = int(line[1])
@@ -155,7 +162,7 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir, one_plus=True):
             # 输出到可视化目录
             img_path_out = viz_dir + '/' + img_name
             cv2.imwrite(img_path_out, img)
-            print('{} written.'.format(img_path_out))
+            # print('{} written.'.format(img_path_out))
 
 
 def process_labeling(data_root, one_plus=True):
@@ -163,6 +170,8 @@ def process_labeling(data_root, one_plus=True):
     处理标注团队的视频标注
     标注工具darklabel
     """
+    global W, H
+
     if not os.path.isdir(data_root):
         print('[Err]: invalid data root.')
         return
@@ -229,22 +238,31 @@ def process_labeling(data_root, one_plus=True):
             break
 
         # ---------- 写入每一帧
-        for i in range(FRAME_NUM):
+        print('Start writing frames...')
+        for i in tqdm(range(FRAME_NUM)):
             success, frame = cap.read()
             if not success:  # 判断当前帧是否存在
                 break
 
+            # 获取当前seq的W, H
+            H, W = frame.shape[:2]
+
             # 写入图片
             img_path = img_dir + '/' + '{:05d}.jpg'.format(i)
             cv2.imwrite(img_path, frame)
-        
+        print('Writing frames done.')
+
         # ---------- 创建label dir
         seq_label_dir = label_root + '/' + video[:-4]
         if not os.path.isdir(seq_label_dir):
             os.makedirs(seq_label_dir)
 
         # ----- 当前seq生成labels
+        print('Start generating labels...')
         id_set_dict = gen_labels_for_seq(txt_path, seq_label_dir, classes, one_plus)
+        if id_set_dict == None:
+            print('Skip {} because of wrong label.'.format(video))
+        print('Generating labels done.')
         # ----------
 
         # 处理完成一个视频seq, 基于id_set_dict, 更新各类别start track id
@@ -252,8 +270,10 @@ def process_labeling(data_root, one_plus=True):
             start_id_dict[k] += len(id_set_dict[k])
 
         # 根据darklabel标注的标签, 可视化图片
+        print('Start visualizing...')
         viz_dir = 'e:/{:s}_viz'.format(prefix)
         viz_dark_label(img_dir, txt_path, viz_dir, one_plus)
+        print('Visualizing done.')
 
         # 可视化视频
         out_video_path = 'e:/{:s}_viz.mp4'.format(prefix)
@@ -261,7 +281,7 @@ def process_labeling(data_root, one_plus=True):
             format(viz_dir, out_video_path)
         os.system(cmd_str)
 
-        print('{:s} done.'.format(prefix))
+        print('{:s} done.\n'.format(prefix))
 
     # --------- 输出所有视频seq各个检测类别的track id总数
     print('\n')
@@ -273,7 +293,10 @@ def process_labeling(data_root, one_plus=True):
 def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
     """
     """
-    global seq_max_id_dict, start_id_dict, fr_cnt
+    global seq_max_id_dict, start_id_dict, fr_cnt, W, H
+    if W < 0 or H < 0:
+        print('[Err]: wrong image WH.')
+        return None
 
     # ----- 开始一个视频seq的label生成
     # 每遇到一个待处理的视频seq, reset各类max_id为0
@@ -286,7 +309,7 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
     # 读取dark label(读取该视频seq的标注文件, 一行代表一帧)
     with open(dark_txt_path, 'r', encoding='utf-8') as r_h:
         # 读视频标注文件的每一行: 每一行即一帧
-        for line in r_h.readlines():
+        for line_i, line in tqdm(enumerate(r_h.readlines())):
             fr_cnt += 1
 
             line = line.split(',')
@@ -331,6 +354,10 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
                 x2 = x2 if x2 < W else W - 1
                 y2 = y2 if y2 >= 0 else 0
                 y2 = y2 if y2 < H else H - 1
+
+                if x1 > x2 or y1 > y2:
+                    print('{} wrong labeld in line {}.'.format(dark_txt_path, line_i))
+                    return None
 
                 # 计算bbox center和bbox width&height
                 bbox_center_x = 0.5 * float(x1 + x2)
@@ -697,6 +724,6 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='F:/seq_label_1225', one_plus=True)
+    process_labeling(data_root='F:/seq_label_21_0106', one_plus=True)
 
     print('\nDone.')
