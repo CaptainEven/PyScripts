@@ -218,9 +218,9 @@ if __name__ == '__main__':
     # RMFilesWithSuffix(root='d:/workspace/resultPro/depth_maps',
     # 				  suffix='_sigma_alpha_0_2_.jpg')
 
-    # GenerateFileList(root='f:/ETH3D/multi_view_training_dslr_undistorted/terrains',
-    # 				 suffix='.JPG',
-    # 				 list_name='bundler.out.list.txt')
+    GenerateFileList(root='f:/ETH3D/multi_view_training_dslr_undistorted/terrains',
+    				 suffix='.jpg',
+    				 list_name='/mnt/diskb/even/test/test.txt')
 
     # sample_files(file_root='f:/tmp', interval=10)
 
@@ -229,8 +229,8 @@ if __name__ == '__main__':
     # rename_files_from_txt(file_root='e:/CppProjs/OpencvSFM/dog',
     #                       txt_f_path='e:/CppProjs/OpencvSFM/dog/bundler.out.list.txt')
 
-    rename_files(file_root='E:/CppProjs/MonoCameraCalibrate/my_chessboard',
-                 width=2, 
-                 prefix='chessboard')
+    rename_files(file_root='C:/Users/Even/Desktop/Pic_1',
+                 width=3, 
+                 prefix='')
     # ResizeImages(img_root='E:/CppProjs/MonoCameraCalibrate/my_chessboard',
     #              size=(1216, 912))  # (640, 480), (1216, 912)

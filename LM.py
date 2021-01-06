@@ -13,15 +13,15 @@ random.seed(0)
 
 N = 100
 a1, b1, c1 = 1, 2, 3      # 这个是需要拟合的函数y(x) 的真实参数
-X = np.linspace(0, 1, N).reshape(100, 1)       
+Xs = np.linspace(0, 1, N).reshape(100, 1)       
 
 # 产生包含噪声的数据
-Y = [np.exp(a1*i**2 + b1*i + c1) + random.gauss(0, 8) for i in X]
+Ys = [np.exp(a1*i**2 + b1*i + c1) + random.gauss(0, 8) for i in Xs]
 
 J = mat(np.zeros((N, 3)))  # 雅克比矩阵
 
-r = mat(np.zeros((N, 1)))  # f(x)  100*1  误差
-r_tmp = mat(np.zeros((N, 1)))
+loss = mat(np.zeros((N, 1)))  # f(x)  100*1  误差
+loss_tmp = mat(np.zeros((N, 1)))
 params = mat([[3.0], [2.0], [1.0]])  # 初始化待优化参数
 print('\Initial parameters:\n', params)
 
@@ -64,31 +64,31 @@ while max_iter:
     mse, mse_tmp = 0.0, 0.0
     step += 1
 
-    r = Y - Func(params, X)  # loss function
+    loss = Ys - Func(params, Xs)  # loss function
 
-    mse += sum(r**2)
+    mse += sum(loss**2)
     mse /= N  # normalize
 
     # 构建雅各比矩阵
-    for j in range(3):  # 3个变量
-        J[:, j] = Deriv(params, X, j)  # 数值求导
+    for j in range(3):
+        J[:, j] = Deriv(params, Xs, j)  # 数值求导
 
     H = J.T*J + u*np.eye(3)   # 3*3
-    hlm = H.I * J.T * r
+    params_delta = H.I * J.T*loss
 
     # update parameters
     params_tmp = params.copy()
-    params_tmp += hlm
+    params_tmp = params_tmp + params_delta
 
     # current loss
-    r_tmp = Y - Func(params_tmp, X)
+    loss_tmp = Ys - Func(params_tmp, Xs)
 
-    mse_tmp = sum(r_tmp[:, 0]**2)
+    mse_tmp = sum(loss_tmp[:, 0]**2)
     mse_tmp /= N
 
     # adaptive adjustment
     q = float((mse - mse_tmp) /
-              ((0.5*-hlm.T*(u*-hlm - J.T*r))[0, 0]))
+              ((0.5*params_delta.T*(u*params_delta - J.T*loss))[0, 0]))
     if q > 0:
         s = 1.0 / 3.0
         v = 2
@@ -117,9 +117,9 @@ while max_iter:
 print('\nFinal optimized parameters:\n', params)
 
 # 用拟合好的参数画图
-z = [Func(params, i) for i in X]
+z = [Func(params, i) for i in Xs]
 
 plt.figure(0)
-plt.scatter(X, Y, s=4)
-plt.plot(X, z, 'r')
+plt.scatter(Xs, Ys, s=4)
+plt.plot(Xs, z, 'r')
 plt.show()

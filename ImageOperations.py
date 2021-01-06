@@ -61,7 +61,6 @@ def rle_decode(mask_rle: str = '', shape: tuple = (1400, 2100)):
     return img.reshape(shape, order='F')
 
 
-
 def test_rle_decode():
     rle_str = '1O10000O10000O1O100O100O1O100O1000000000000000O100O102N5K00O1O1N2O110OO2O001O1NTga3'
     shape = (375, 1242)
@@ -108,7 +107,6 @@ def cvt_jpg_to_png(img_dir):
         print('{:s} converted to {:s}.'.format(jpg_name, png_path))
 
 
-
 def test():
     img_path = './humin.jpg'
     if not os.path.isfile(img_path):
@@ -139,13 +137,65 @@ def test():
     cv2.imwrite('./humin_.jpg', img_rt)
 
 
+def resize():
+    img_path = './maxiling.jpg'
+    if not os.path.isfile(img_path):
+        print('[Err]: invalid image path.')
+        return
+
+    img = cv2.imread(img_path)  # HWC
+    if img is None:
+        print('[Warning]: empty image.')
+        return
+
+    img_rs = cv2.resize(img, (295, 413), cv2.INTER_CUBIC)
+    cv2.imwrite('./maxiling_.jpg', img_rs)
+
+
+def change_bkg():
+
+    img = cv2.imread('./maxiling.jpg')
+
+    # 缩放
+    rows, cols, channels = img.shape
+    img = cv2.resize(img, (295, 413))
+    rows, cols, channels = img.shape
+    cv2.imshow('img', img)
+
+    # 转换hsv
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    lower_blue = np.array([78, 43, 46])
+    upper_blue = np.array([110, 255, 255])
+    mask = cv2.inRange(hsv, lower_blue, upper_blue)
+    cv2.imshow('Mask', mask)
+
+    # 腐蚀膨胀
+    erode = cv2.erode(mask, None, iterations=1)
+    cv2.imshow('erode', erode)
+    dilate = cv2.dilate(erode, None, iterations=1)
+    cv2.imshow('dilate', dilate)
+
+    # 遍历替换
+    for i in range(rows):
+        for j in range(cols):
+            if dilate[i, j] == 255:
+                img[i, j] = (0, 0, 255)  # 此处替换颜色，为BGR通道
+    cv2.imshow('res', img)
+
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+
 if __name__ == '__main__':
     # test_png_format_mask()
-    
+
     # test_rle_decode()
 
     # cvt_jpg_to_png(img_dir='F:/MVE/mve_build/apps/dog')
 
-    test()
+    # test()
+    resize()
+
+    # change_bkg()
 
     print('Done.')
