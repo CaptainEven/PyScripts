@@ -342,7 +342,7 @@ if __name__ == '__main__':
     # video_list = ['f:mcmot_seq1/car_8.mp4',
     #    'f:/car_9.mp4']
     video_list = [
-        'f:/train_37.mp4',
+        'f:/test3.avi',
         # 'f:/mcmot_seq26_2.mp4',
         #   'f:/mcmot_seq26_3.mp4',
         #   'f:/mcmot_seq25_4.mp4',
@@ -353,8 +353,8 @@ if __name__ == '__main__':
     #                 threshold=0.0001)
     videos2frames(videos_list=video_list,
                   img_root='f:/tmp',
-                  start_fr_id=0,
-                  max_img_num=1000)
+                  start_fr_id=3,
+                  max_img_num=500)
 
     #png2jpg('F:/2019420101148_even', 'F:/2019420101148_even')
     #resize_jpgs('F:/2019420101148_even', 200, 150)

@@ -1,0 +1,21 @@
+mkdir build
+cd build
+
+cmake -DCMAKE_TOOLCHAIN_FILE=../toolchain.cmake \
+-D CMAKE_INSTALL_PREFIX=/home/jaya/even/opencv-4.5.0/output \
+-D CMAKE_BUILD_TYPE=RELEASE \
+-D BUILD_SHARED_LIBS=ON \
+-D WITH_GTK=OFF \
+-D WITH_GTK_2_X=OFF \
+-D WITH_PNG=OFF \
+-D WITH_1394=OFF \
+-D WITH_GPHOTO2=OFF \
+-D WITH_GSTREAMER=OFF \
+-D BUILD_opencv_freetype=OFF \
+#-D OPENCV_EXTRA_MODULES_PATH=/home/jaya/Downloads/opencv-3.3.1/opencv_contrib-3.3.1/modules/ \
+..
+
+make -j8
+
+#sudo DESTDIR=../output
+make install

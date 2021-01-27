@@ -357,13 +357,14 @@ def Deriv(params, fx, fy, cx, cy, pts_list, i):
     return deriv
 
 
+# 相机坐标系归一化坐标(2D)进行去畸变操作
 def undistort_points(u, v,
                      fx, fy, cx, cy,
                      k1, k2, p1=None, p2=None,
                      radial_ud_only=True):
     """
     """
-    # convert to camera coordinates
+    # pixel coordinates convert to camera coordinates
     # by camera intrinsic parameters
     x1 = (u - cx) / fx
     y1 = (v - cy) / fy
@@ -386,7 +387,7 @@ def undistort_points(u, v,
     u_corrected = fx * x2 + cx
     v_corrected = fy * y2 + cy
 
-    return [u_corrected, v_corrected]
+    return [u_corrected, v_corrected]  # pixel coordinates
 
 
 def line_equation(x1, y1, x2, y2):

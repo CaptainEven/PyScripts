@@ -4,6 +4,7 @@ import os
 import time
 import shutil
 import re
+import math
 import cv2
 from collections import defaultdict
 from tqdm import tqdm
@@ -38,7 +39,7 @@ from tqdm import tqdm
 #     5: 'tricycle'
 # }
 
-classes = [
+class_types = [
     'car',           # 0
     'bicycle',       # 1
     'person',        # 2
@@ -195,7 +196,7 @@ def process_labeling(data_root, one_plus=True):
     # 为视频seq的每个检测类别设置[起始]track id
     global start_id_dict
     start_id_dict = defaultdict(int)  # str => int
-    for class_type in classes:  # 初始化
+    for class_type in class_types:  # 初始化
         start_id_dict[class_type] = 0
 
     # 记录每一个视频seq各类最大的track id
@@ -203,7 +204,7 @@ def process_labeling(data_root, one_plus=True):
     seq_max_id_dict = defaultdict(int)
     global fr_cnt
     fr_cnt = 0
-    
+
     # --------- 处理每一个seq
     video_names = [x for x in os.listdir(data_root) if x.endswith('.mp4')]
     video_names.sort()
@@ -259,11 +260,12 @@ def process_labeling(data_root, one_plus=True):
 
         # ----- 当前seq生成labels
         print('Start generating labels...')
-        id_set_dict = gen_labels_for_seq(txt_path, seq_label_dir, classes, one_plus)
+        id_set_dict = gen_labels_for_seq(txt_path, seq_label_dir, class_types, one_plus)
         if id_set_dict == None:
             print('Skip {} because of wrong label.'.format(video))
-        print('Generating labels done.')
+            continue
         # ----------
+        print('Generating labels done.')
 
         # 处理完成一个视频seq, 基于id_set_dict, 更新各类别start track id
         for k, v in start_id_dict.items():
@@ -298,17 +300,18 @@ def process_labeling(data_root, one_plus=True):
     print('Total {} frames.'.format(fr_cnt))
 
 
-def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
+def gen_labels_for_seq(dark_txt_path, seq_label_dir, class_types, one_plus=True):
     """
     """
     global seq_max_id_dict, start_id_dict, fr_cnt, W, H
     if W < 0 or H < 0:
         print('[Err]: wrong image WH.')
         return None
+    print('Image width&height: {}×{}'.format(W, H))
 
     # ----- 开始一个视频seq的label生成
     # 每遇到一个待处理的视频seq, reset各类max_id为0
-    for class_type in classes:
+    for class_type in class_types:
         seq_max_id_dict[class_type] = 0
 
     # 记录当前seq各个类别的track id集合
@@ -319,6 +322,9 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
         # 读视频标注文件的每一行: 每一行即一帧
         for line_i, line in tqdm(enumerate(r_h.readlines())):
             fr_cnt += 1
+
+            # 判断该帧是否合法的标志
+            is_fr_valid = False
 
             line = line.split(',')
             fr_id = int(line[0])
@@ -363,8 +369,9 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
                 y2 = y2 if y2 >= 0 else 0
                 y2 = y2 if y2 < H else H - 1
 
-                if x1 > x2 or y1 > y2:
-                    print('{} wrong labeld in line {}.'.format(dark_txt_path, line_i))
+                if x1 >= x2 or y1 >= y2:
+                    print('{} wrong labeled in line {}.'
+                    .format(dark_txt_path, line_i))
                     return None
 
                 # 计算bbox center和bbox width&height
@@ -382,6 +389,30 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
                 # 打印中间结果, 验证是否解析正确...
                 # print(track_id, x1, y1, x2, y2, class_type)
 
+                # Nan 判断
+                if math.isnan(class_id) or math.isnan(track_id) \
+                    or math.isnan(bbox_center_x) or math.isnan(bbox_center_y) \
+                        or math.isnan(bbox_width) or math.isnan(bbox_height):
+                    print(
+                        'Found nan value, invalid frame, skip frame {}.'.format(fr_id))
+                    break  # 跳出当前帧的循环
+                else:
+                    # class id, track id有效性判断
+                    if class_id < 0 or class_id >= len(class_types) or track_id < 0:
+                        print('Found illegal value of class id or track id.',
+                              class_id, track_id)
+                        break
+
+                    if bbox_center_x < 0.0 or bbox_center_x > 1.0 \
+                            or bbox_center_y < 0.0 or bbox_center_y > 1.0 \
+                            or bbox_width < 0.0 or bbox_width > 1.0 \
+                            or bbox_height < 0.0 or bbox_height > 1.0:
+                        print('Found illegal value of bbox.',
+                              bbox_center_x, bbox_center_y, bbox_width, bbox_height)
+                        break
+
+                    is_fr_valid = True
+
                 # 每一帧对应的label中的每一行
                 obj_str = '{:d} {:d} {:.6f} {:.6f} {:.6f} {:.6f}\n'.format(
                     class_id,         # class id: 从0开始计算
@@ -392,16 +423,19 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus=True):
                     bbox_height)      # bbox_h
                 # print(obj_str, end='')
                 fr_label_objs.append(obj_str)
-            
-            # ----- 该帧解析结束, 输出该帧的label文件: 每一帧图像对应一个txt格式的label文件
-            label_f_path = seq_label_dir + '/{:05d}.txt'.format(fr_id)
-            with open(label_f_path, 'w', encoding='utf-8') as w_h:
-                for obj in fr_label_objs:
-                    w_h.write(obj)
-            # print('{} written\n'.format(label_f_path))
-    
+
+            if is_fr_valid:
+                # ----- 该帧解析结束, 输出该帧的label文件: 每一帧图像对应一个txt格式的label文件
+                label_f_path = seq_label_dir + '/{:05d}.txt'.format(fr_id)
+                with open(label_f_path, 'w', encoding='utf-8') as w_h:
+                    for obj in fr_label_objs:
+                        w_h.write(obj)
+                # print('{} written\n'.format(label_f_path))
+            else:
+                return None
+
     return id_set_dict
-    
+
 
 def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
     """
@@ -430,7 +464,7 @@ def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
     # 为视频seq的每个检测类别设置[起始]track id
     global start_id_dict
     start_id_dict = defaultdict(int)  # str => int
-    for class_type in classes:  # 初始化
+    for class_type in classe_types:  # 初始化
         start_id_dict[class_type] = 0
 
     # 记录每一个视频seq各类最大的track id
@@ -463,18 +497,19 @@ def dark_label2mcmot_label(data_root, one_plus=True, viz_root=None):
             continue
 
         # 当前seq生成labels
-        id_set_dict = gen_labels_for_seq(dark_txt_path, seq_label_dir, classes, one_plus)
+        id_set_dict = gen_labels_for_seq(
+            dark_txt_path, seq_label_dir, classe_types, one_plus)
 
         # 输出该视频seq各个检测类别的max track id(从1开始)
         for k, v in seq_max_id_dict.items():
             print('seq {}'.format(seq_name) + ' ' +
                   k + ' max track id {:d}'.format(v))
 
-             # 输出当前seq各个类别的track id数(独一无二的id个数)
-            cls_id_set = id_set_dict[k] 
+            # 输出当前seq各个类别的track id数(独一无二的id个数)
+            cls_id_set = id_set_dict[k]
             print('seq {}'.format(seq_name) + ' ' +
                   k + ' track id number {:d}'.format(len(cls_id_set)))
-            
+
             if len(cls_id_set) != v:
                 print(cls_id_set)
 
@@ -732,6 +767,6 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='F:/seq_label_21_0106', one_plus=True)
+    process_labeling(data_root='F:/seq_label_21_0122', one_plus=True)
 
     print('\nDone.')
