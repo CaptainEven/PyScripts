@@ -124,13 +124,13 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
     # 根据起始坐标(判断其所在笛卡尔坐标象限)设置direction
     # 模拟敌机来袭从远处飞往近处
     if x0 >= 0.0 and y0 >= 0.0:    # 第一象限
-        direction = np.random.randint(200, 250)  # 往第三象限飞
+        direction = np.random.randint(200, 250)  # 飞往第三象限
     elif x0 >= 0.0 and y0 < 0.0:   # 第四象限
-        direction = np.random.randint(110, 160)  # 往第二象限飞
+        direction = np.random.randint(110, 160)  # 飞往第二象限
     elif x0 < 0.0 and y0 >= 0.0:   # 第二象限
-        direction = np.random.randint(290, 340)  # 往第四象限飞
+        direction = np.random.randint(290, 340)  # 飞往第四象限
     elif x0 < 0.0 and y0 < 0.0:    # 第三象限                        #
-        direction = np.random.randint(20, 70)    # 往第一象限飞
+        direction = np.random.randint(20, 70)    # 飞往第一象限
 
     # 运动模型: 匀(加)速直线
     # 生成航迹
@@ -141,12 +141,16 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
         direction_noise = ((1-(-1)) * np.random.random() + (-1)) * 10
         direction += direction_noise
         direction = direction if direction >= 0.0 else direction + 360.0
-        print('Iter {:d} | heading direction: {:.3f}°'.format(i, direction))
 
         # 为加速度增加随机噪声扰动: 即航速扰动
         a_noise = ((1-(-1)) * np.random.random() + (-1)) * 100
         a += a_noise
 
+        # logging...
+        print('Iter {:d} | heading direction: {:.3f}° | acceleration: {:.3f}m/s²'
+              .format(i, direction))
+
+        # 一个扫描周期目标状态改变量
         ret = move_in_a_cycle(x0, y0, v0, a, direction, cycle_time)
         if ret == None:
             continue
@@ -291,17 +295,24 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 2:  # 从第三个点迹开始求v, a
+            if j >= 2:  # 从第三个点迹开始求v, a, angle
+                # 获取连续3个点迹
                 plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+
+                # 估算当前点迹的运动状态
                 v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+
+                # 航向偏移角度估算
                 angle_in_degrees = math.degrees(angle_in_radians)
                 angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
 
+                # 门限判定
                 if v >= v_min and \
                    v <= v_max and \
                    a <= a_max and \
                    angle_in_degrees < angle_max:
                     n_pass += 1
+
                 else:  # 记录航迹起始失败原因
                     is_v_pass = v >= v_min and v <= v_max
                     is_a_pass = a <= a_max
@@ -310,10 +321,10 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
                     if not is_v_pass:
                         if v < v_min:
                             print('Track init failed @cycle{:d}, velocity threshold: {:.3f} < {:.3f}m/s'
-                              .format(i, float(v), v_min))
+                                  .format(i, float(v), v_min))
                         elif v > v_max:
                             print('Track init failed @cycle{:d}, velocity threshold: {:.3f} > {:.3f}m/s'
-                              .format(i, float(v), v_max))
+                                  .format(i, float(v), v_max))
                     if not is_a_pass:
                         print('Track init failed @cycle{:d}, acceleration threshold: {:.3f} > {:.3f}m/s²'
                               .format(i, a, float(a_max)))
@@ -336,9 +347,68 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     return succeed, start_cycle
 
 
-def logic_method(track):
+def start_gate_check(cycle_time, plot_pre, plot_cur, v0):
     """
     """
+    # 计算初始波门(环形波门的两个半径)
+    r_min = v0 * cycle_time * 0.1  # 小半径
+    r_max = v0 * cycle_time * 2.5  # 大半径
+
+    # 距离计算
+    x_pre, y_pre = plot_pre
+    x_cur, y_cur = plot_cur
+    dist = math.sqrt((x_cur - x_pre) * (x_cur - x_pre)
+                     + (y_cur - y_pre) * (y_cur - y_pre))
+
+    return dist >= r_min and dist <= r_max
+
+
+def logic_method(track, cycle_time, sigma=200):
+    """
+    逻辑法
+    """
+    # TODO: 动态更新sigma
+
+    # 窗口滑动
+    succeed = False
+    for i in range(2, N-n):
+        # 取滑窗
+        window = slide_window(track, n, i)
+
+        # 判定
+        n_pass = 0
+        for j, plot in enumerate(window):
+            if j >= 2:  # 从第三个点迹开始求v, a, angle
+                # 获取连续3个点迹
+                plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+
+                # 估算当前点迹的运动状态
+                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+
+                # 航向偏移角度估算
+                angle_in_degrees = math.degrees(angle_in_radians)
+                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+
+                # ----- 判定逻辑...
+                if j >= 3:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
+                    # 初始波门判定
+                    if start_gate_check(cycle_time, window[j-1], window[j], v0=340):
+                        pass
+                        # 继续判断相关波门...
+            else:
+                continue
+
+        # 判定航迹是否起始成功
+        if n_pass >= m:
+            succeed = True
+
+        if succeed:
+            start_cycle = i
+            break
+        else:
+            continue  # 下一个滑窗
+
+    return succeed, start_cycle
 
 
 def test_direct_method(track_f_path, cycle_time):
@@ -360,8 +430,8 @@ def test_direct_method(track_f_path, cycle_time):
     for i, track in enumerate(tracks):
         succeed, start_cycle = direct_method(track,
                                              cycle_time=cycle_time,
-                                             v_min=200, v_max=400,  # 2M
-                                             a_max=15, angle_max=7,
+                                             v_min=200, v_max=400,   # 2M
+                                             a_max=15, angle_max=7,  # 军机7°/s
                                              m=3, n=4)
         if succeed:
             print('Track {:d} initialization succeeded @cycle {:d}.'
@@ -609,7 +679,7 @@ def plot_tracks(track_f_path):
 
 if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
-    # plot_tracks('./tracks_2_1s.npy')
+    plot_tracks('./tracks_2_1s.npy')
     test_direct_method('./tracks_2_1s.npy', cycle_time=1)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
