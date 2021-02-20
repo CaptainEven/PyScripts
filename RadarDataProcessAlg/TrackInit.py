@@ -278,11 +278,17 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
                 plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
                 v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
                 angle_in_degrees = math.degrees(angle_in_radians)
+                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
 
-                if v >= v_min and v <= v_max and \
-                    a <= a_max and \
-                        angle_in_radians < angle_max:
+                if v >= v_min and \
+                   v <= v_max and \
+                   a <= a_max and \
+                   angle_in_degrees < angle_max:
                     n_pass += 1
+                else:  # 记录航迹起始失败原因
+                    is_v_pass = v >= v_min and v <= v_max
+                    is_a_pass = a <= a_max
+                    is_angle_pass = angle_in_degrees <= angle_max
             else:
                 continue
 
@@ -490,12 +496,12 @@ def plot_tracks(track_f_path):
     ax0.set_theta_direction(-1)  # anti-clockwise
     ax0.set_rmin(10)
     ax0.set_rmax(100000)
-    ax0.set_rticks(np.arange(-50000, 50000, 1000))
+    ax0.set_rticks(np.arange(-50000, 50000, 3000))
     ax0.set_title('polar')
 
     ax1 = plt.subplot(122)
-    ax1.set_xticks(np.arange(-50000, 50000, 1000))
-    ax1.set_yticks(np.arange(-50000, 50000, 1000))
+    ax1.set_xticks(np.arange(-50000, 50000, 10000))
+    ax1.set_yticks(np.arange(-50000, 50000, 10000))
     ax1.set_title('cartesian')
 
     # # ----- 逐一绘制每个track
@@ -542,14 +548,27 @@ def plot_tracks(track_f_path):
         neg_inds = np.where(theta < 0.0)
         theta[neg_inds] += np.pi*2.0
 
-        # 绘制点迹
+        # 绘制点迹组成的航迹
         for j in range(M):
-            ax0.scatter(theta[j], r[j], c=cycle_colors[j],
-                        marker=cycle_markers[j])  # 散点图
-            ax0.text(theta[j], r[j], str(i))  # 为每个点绘制序号/笛卡尔坐标标签
-            ax1.scatter(x[j], y[j], c=cycle_colors[j],
-                        marker=cycle_markers[j])  # 散点图
-            ax1.text(x[j], y[j], str(i))  # 为每个点绘制坐标标签
+            # 在第一个雷达扫描周期绘制航迹(编号)标签
+            if i == 0:
+                ax0.text(theta[j], r[j], 'Track {:d}'.format(j))  
+                ax1.text(x[j], y[j], 'Track {:d}'.format(j))  
+
+            # 绘制极坐标点迹
+            ax0.scatter(theta[j], r[j], c=cycle_colors[j], marker=cycle_markers[j])  
+            
+            # 为每个点绘制序号/笛卡尔坐标标签
+            if i != 0 and i % 10 == 0:
+                ax0.text(theta[j], r[j], str(i))  
+
+            # 绘制笛卡尔坐标点迹
+            ax1.scatter(x[j], y[j], c=cycle_colors[j], marker=cycle_markers[j])
+
+            # 为每个点绘制点迹标号标签
+            if i != 0 and i % 10 == 0:
+                ax1.text(x[j], y[j], str(i))  
+
         plt.pause(0.5)
 
     # 绘图展示
@@ -567,4 +586,4 @@ if __name__ == '__main__':
     # plot_cartesian_map(track)
     # plot_polar_map(track)
 
-    # 
+    #
