@@ -183,8 +183,27 @@ def get_v_a_angle(plots_3, cycle_time):
     x1, y1 = plot1
     x2, y2 = plot2
     
+    # 计算位移数值
     dist0 = math.sqrt((x1-x0)*(x1-x0) + (y1-y0)*(y1-y0))
-    dist1 = 
+    dist1 = math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1))
+
+    # 计算速度
+    v0 = dist0 / cycle_time
+    v1 = dist1 / cycle_time
+    
+    # 计算加速度
+    a = (v1 - v0) / cycle_time
+
+    # ----- 计算航向偏转角
+    # 计算位移向量
+    s0 = np.array([x1, y1]) - np.array([x0, y0])
+    s1 = np.array([x2, y2]) - np.array([x1, y1])
+
+    # 计算角度(夹角余弦): 返回反余弦弧度值
+    radian = math.acos(np.dot(s0, s1) / (dist0*dist1))
+
+    return v1, a, radian
+
 
 def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     """
@@ -209,12 +228,21 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     # 取滑动窗口
     succeed = False
     for i in range(2, N-n):
+        # 取滑窗
         window = slide_window(track, n, i)
     
         # 判定
         for j, plot in enumerate(window):
             if j >= 2:  # 从第三个点迹开始求v, a
-                pass
+                plots_3 = window[j-2: j+1]
+                v, a, angle_in_radian = get_v_a_angle(plots_3, cycle_time)
+
+                if v >= v_min and v <= v_max and \
+                    a <= a_max and \
+                        angle_in_radian < angle_max:
+                        succeed = True
+            else:
+                continue
 
         if succeed:
             start_cycle = i
