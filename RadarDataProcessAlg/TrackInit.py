@@ -16,7 +16,7 @@ from random import sample
 # }
 
 TrackStates = {
-    0: 'Potential'   # 可能航迹
+    0: 'Potential',   # 可能航迹
     1: 'Temporaty',  # 暂时航迹
     2: 'Reliable',   # 可靠航迹
     3: 'Fixed',      # 固定航迹
