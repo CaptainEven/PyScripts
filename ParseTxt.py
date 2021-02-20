@@ -40,11 +40,12 @@ from tqdm import tqdm
 # }
 
 class_types = [
-    'car',           # 0
-    'bicycle',       # 1
-    'person',        # 2
-    'cyclist',       # 3
-    'tricycle'       # 4
+    'car',            # 0
+    'bicycle',        # 1
+    'person',         # 2
+    'cyclist',        # 3
+    'tricycle',       # 4
+    'car_plate'       # 5
 ]  # 5类(不包括背景)
 
 cls2id = {
@@ -52,7 +53,8 @@ cls2id = {
     'bicycle': 1,
     'person': 2,
     'cyclist': 3,
-    'tricycle': 4
+    'tricycle': 4,
+    'car_plate': 5
 }
 
 id2cls = {
@@ -60,7 +62,8 @@ id2cls = {
     1: 'bicycle',
     2: 'person',
     3: 'cyclist',
-    4: 'tricycle'
+    4: 'tricycle',
+    5: 'car_plate'
 }
 
 # ----------
@@ -74,7 +77,8 @@ cls_color_dict = {
     'bicycle': [219, 112, 147],    # MediumPurple
     'person': [98, 130, 238],      # Salmon
     'cyclist': [181, 228, 255],
-    'tricycle': [211, 85, 186]
+    'tricycle': [211, 85, 186],
+    'car_plate': [255, 0, 0]
 }
 
 
@@ -767,6 +771,6 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='F:/seq_label_21_0122', one_plus=True)
+    process_labeling(data_root='F:/plm_seq_label_21_0127', one_plus=True)
 
     print('\nDone.')

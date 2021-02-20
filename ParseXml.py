@@ -4,6 +4,7 @@ import os
 import shutil
 import cv2
 import xml.etree.ElementTree as ET
+from tqdm import tqdm
 
 
 def parse_ign_reg_and_apply2img(img_dir, xml_f_path):
@@ -39,7 +40,7 @@ def parse_ign_reg_and_apply2img(img_dir, xml_f_path):
             bboxes.append([x_min, x_max, y_min, y_max])
 
     # 读取img目录的每一张图片, 对每一张图应用ignore zone
-    for x in os.listdir(img_dir):
+    for x in tqdm(os.listdir(img_dir)):
         x_path = img_dir + '/' + x
         img = cv2.imread(x_path)
 
@@ -48,7 +49,7 @@ def parse_ign_reg_and_apply2img(img_dir, xml_f_path):
             img[bbox[2]: bbox[3], bbox[0]: bbox[1], :] = 0
 
         cv2.imwrite(x_path, img)
-        print('{} non_interest_zone drawed.'.format(x_path))
+        # print('{} non_interest_zone drawed.'.format(x_path))
 
 
 if __name__ == '__main__':
