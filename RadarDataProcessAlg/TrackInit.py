@@ -7,6 +7,22 @@ import matplotlib.pyplot as plt
 from random import sample
 
 
+# ---------- Parameters ----------
+# TrackStates = {
+#     'Temporaty': 0,
+#     'Reliable':  1,
+#     'Fixed':     2,
+#     'Potential': 3
+# }
+
+TrackStates = {
+    0: 'Potential'   # 可能航迹
+    1: 'Temporaty',  # 暂时航迹
+    2: 'Reliable',   # 可靠航迹
+    3: 'Fixed',      # 固定航迹
+}
+
+
 # ---------- Generate Data ----------
 
 def move_in_a_cycle(x0, y0, v0, a, direction, t=3):
@@ -290,21 +306,20 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
                     is_v_pass = v >= v_min and v <= v_max
                     is_a_pass = a <= a_max
                     is_angle_pass = angle_in_degrees <= angle_max
+
                     if not is_v_pass:
                         if v < v_min:
-                            print('Track initilization failed @cycle{:d} because of velocity threshold: {:.3f} < {:d}'
-                              .format(i, v, v_min))
+                            print('Track init failed @cycle{:d}, velocity threshold: {:.3f} < {:.3f}m/s'
+                              .format(i, float(v), v_min))
                         elif v > v_max:
-                            print('Track initilization failed @cycle{:d} because of velocity threshold: {:.3f} > {:d}'
-                              .format(i, v, v_max))
-                        # print('Track initilization failed @cycle{:d} because of velocity threshold.'
-                        #       .format(i))
+                            print('Track init failed @cycle{:d}, velocity threshold: {:.3f} > {:.3f}m/s'
+                              .format(i, float(v), v_max))
                     if not is_a_pass:
-                        print('Track initilization failed @cycle{:d} because of acceleration threshold.'
-                              .format(i))
+                        print('Track init failed @cycle{:d}, acceleration threshold: {:.3f} > {:.3f}m/s²'
+                              .format(i, a, float(a_max)))
                     if not is_angle_pass:
-                        print('Track initilization failed @cycle{:d} because of heading angle threshold.'
-                              .format(i))
+                        print('Track init failed @cycle{:d}, heading angle threshold: {:.3f} > {:.3f}°'
+                              .format(i, angle_in_degrees, angle_max))
             else:
                 continue
 
