@@ -245,6 +245,7 @@ def get_v_a_angle(plots_3, cycle_time):
     return v1, a, radian
 
 
+# Page 57
 def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     """
     直观航迹起始算法:
@@ -289,6 +290,21 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
                     is_v_pass = v >= v_min and v <= v_max
                     is_a_pass = a <= a_max
                     is_angle_pass = angle_in_degrees <= angle_max
+                    if not is_v_pass:
+                        if v < v_min:
+                            print('Track initilization failed @cycle{:d} because of velocity threshold: {:.3f} < {:d}'
+                              .format(i, v, v_min))
+                        elif v > v_max:
+                            print('Track initilization failed @cycle{:d} because of velocity threshold: {:.3f} > {:d}'
+                              .format(i, v, v_max))
+                        # print('Track initilization failed @cycle{:d} because of velocity threshold.'
+                        #       .format(i))
+                    if not is_a_pass:
+                        print('Track initilization failed @cycle{:d} because of acceleration threshold.'
+                              .format(i))
+                    if not is_angle_pass:
+                        print('Track initilization failed @cycle{:d} because of heading angle threshold.'
+                              .format(i))
             else:
                 continue
 
@@ -329,8 +345,8 @@ def test_direct_method(track_f_path, cycle_time):
     for i, track in enumerate(tracks):
         succeed, start_cycle = direct_method(track,
                                              cycle_time=cycle_time,
-                                             v_min=200, v_max=400,
-                                             a_max=15, angle_max=10,
+                                             v_min=200, v_max=400,  # 2M
+                                             a_max=15, angle_max=7,
                                              m=3, n=4)
         if succeed:
             print('Track {:d} initialization succeeded @cycle {:d}.'
@@ -552,22 +568,23 @@ def plot_tracks(track_f_path):
         for j in range(M):
             # 在第一个雷达扫描周期绘制航迹(编号)标签
             if i == 0:
-                ax0.text(theta[j], r[j], 'Track {:d}'.format(j))  
-                ax1.text(x[j], y[j], 'Track {:d}'.format(j))  
+                ax0.text(theta[j], r[j], 'Track {:d}'.format(j))
+                ax1.text(x[j], y[j], 'Track {:d}'.format(j))
 
             # 绘制极坐标点迹
-            ax0.scatter(theta[j], r[j], c=cycle_colors[j], marker=cycle_markers[j])  
-            
+            ax0.scatter(theta[j], r[j], c=cycle_colors[j],
+                        marker=cycle_markers[j])
+
             # 为每个点绘制序号/笛卡尔坐标标签
             if i != 0 and i % 10 == 0:
-                ax0.text(theta[j], r[j], str(i))  
+                ax0.text(theta[j], r[j], str(i))
 
             # 绘制笛卡尔坐标点迹
             ax1.scatter(x[j], y[j], c=cycle_colors[j], marker=cycle_markers[j])
 
             # 为每个点绘制点迹标号标签
             if i != 0 and i % 10 == 0:
-                ax1.text(x[j], y[j], str(i))  
+                ax1.text(x[j], y[j], str(i))
 
         plt.pause(0.5)
 
@@ -577,7 +594,7 @@ def plot_tracks(track_f_path):
 
 if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
-    plot_tracks('./tracks_2_1s.npy')
+    # plot_tracks('./tracks_2_1s.npy')
     test_direct_method('./tracks_2_1s.npy', cycle_time=1)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
