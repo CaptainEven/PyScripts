@@ -27,9 +27,9 @@ def move_in_a_cycle(x0, y0, v0, a, direction, t=3):
     if direction > 0 and direction <= 90:  # 第1象限
         # 计算角度
         degree = direction
-        radian = math.radians(degree)    
+        radian = math.radians(degree)
         radian = radian if radian >= 0 else radian + math.pi
-        degree = math.degrees(radian)   
+        degree = math.degrees(radian)
 
         # 计算新坐标
         x_delta = math.sin(radian) * s
@@ -39,7 +39,7 @@ def move_in_a_cycle(x0, y0, v0, a, direction, t=3):
     elif direction > 90 and direction <= 180:  # 第2象限
         # 计算角度
         degree = 180 - direction
-        radian = math.radians(degree)    
+        radian = math.radians(degree)
         radian = radian if radian >= 0 else radian + math.pi
         degree = math.degrees(radian)
 
@@ -51,7 +51,7 @@ def move_in_a_cycle(x0, y0, v0, a, direction, t=3):
     elif direction > 180 and direction <= 270:  # 第3象限
         # 计算角度
         degree = 270 - direction
-        radian = math.radians(degree)   
+        radian = math.radians(degree)
         radian = radian if radian >= 0 else radian + math.pi
         degree = math.degrees(radian)
 
@@ -63,7 +63,7 @@ def move_in_a_cycle(x0, y0, v0, a, direction, t=3):
     else:  # 第4象限
         # 计算角度
         degree = 360 - direction
-        radian = math.radians(degree)    
+        radian = math.radians(degree)
         radian = radian if radian >= 0 else radian + math.pi
         degree = math.degrees(radian)
 
@@ -71,7 +71,7 @@ def move_in_a_cycle(x0, y0, v0, a, direction, t=3):
         x_delta = math.sin(radian) * s
         y_delta = - math.cos(radian) * s
         x = x0 + x_delta
-        y = y0 + y_delta 
+        y = y0 + y_delta
 
     return x, y
 
@@ -96,7 +96,7 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
     y0 = np.random.randint(-40000, 40000)
     while 1:
         if ((x0 > 32000 and x0 < 33000) or (x0 > -33000 and x0 < -32000)) \
-            and ((y0 > 32000 and y0 < 33000) or (y0 > -33000 and y0 < -32000)):
+                and ((y0 > 32000 and y0 < 33000) or (y0 > -33000 and y0 < -32000)):
             break
         else:
             # x0 = 30000
@@ -113,8 +113,8 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
         direction = np.random.randint(110, 160)  # 往第二象限飞
     elif x0 < 0.0 and y0 >= 0.0:   # 第二象限
         direction = np.random.randint(290, 340)  # 往第四象限飞
-    elif x0 < 0.0 and y0 < 0.0:    # 第三象限                        # 
-        direction = np.random.randint(20, 70)    # 往第一象限飞 
+    elif x0 < 0.0 and y0 < 0.0:    # 第三象限                        #
+        direction = np.random.randint(20, 70)    # 往第一象限飞
 
     # 运动模型: 匀(加)速直线
     # 生成航迹
@@ -159,6 +159,44 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
 
     return track
 
+# 同时生成几个航迹(track)
+
+
+def gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1):
+    """
+    :param M:  航迹数
+    :param N:  雷达扫描周期数
+    :param v0: 初始速度
+    :param a:  加速度
+    :param cycle_time: 雷达每周期扫描时间
+    :return:
+    """
+    tracks = []
+    for i in range(M):
+        # 随机主航向角度(°)
+        direction = np.random.rand() * 360
+
+        # ---------- 生成一条航迹
+        track = gen_track_cv_ca(
+            N=N, v0=v0, a=a, direction=direction, cycle_time=1)
+        # ----------
+
+        tracks.append(track)
+        # print(track, '\n')
+
+    # ---------- 序列化航迹数据到磁盘
+    tracks = np.array(tracks)
+    # print(tracks)
+
+    # ----- 存为npy文件
+    npz_save_path = './tracks'
+    np.save(npz_save_path, tracks)
+    print('{:s} saved.'.format(npz_save_path))
+
+    # ----- 存为txt文件
+
+    return np.array(tracks)
+
 
 # ---------- Algorithm
 """
@@ -166,6 +204,8 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
 如果这 N 次扫描中有某
 M 个观测值满足以下条件，那么启发式规则法就认定应起始一条航迹
 """
+
+
 def slide_window(track, n=4, start_cycle=1):
     """
     """
@@ -182,7 +222,7 @@ def get_v_a_angle(plots_3, cycle_time):
     x0, y0 = plot0
     x1, y1 = plot1
     x2, y2 = plot2
-    
+
     # 计算位移数值
     dist0 = math.sqrt((x1-x0)*(x1-x0) + (y1-y0)*(y1-y0))
     dist1 = math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1))
@@ -190,7 +230,7 @@ def get_v_a_angle(plots_3, cycle_time):
     # 计算速度
     v0 = dist0 / cycle_time
     v1 = dist1 / cycle_time
-    
+
     # 计算加速度
     a = (v1 - v0) / cycle_time
 
@@ -216,7 +256,7 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     :param v_min:
     :param v_max:
     :param a_max:
-    :param angle_max:
+    :param angle_max:  一次雷达扫描周期内最大允许航向角度偏转(°)
     :param m:
     :param n:
     :return:
@@ -230,32 +270,67 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     for i in range(2, N-n):
         # 取滑窗
         window = slide_window(track, n, i)
-    
+
         # 判定
+        n_pass = 0
         for j, plot in enumerate(window):
             if j >= 2:  # 从第三个点迹开始求v, a
-                plots_3 = window[j-2: j+1]
-                v, a, angle_in_radian = get_v_a_angle(plots_3, cycle_time)
+                plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                angle_in_degrees = math.degrees(angle_in_radians)
 
                 if v >= v_min and v <= v_max and \
                     a <= a_max and \
-                        angle_in_radian < angle_max:
-                        succeed = True
+                        angle_in_radians < angle_max:
+                    n_pass += 1
             else:
                 continue
+
+        # 判定航迹是否起始成功
+        if n_pass >= m:
+            succeed = True
 
         if succeed:
             start_cycle = i
             break
         else:
-            continue
+            continue  # 下一个滑窗
 
-    return True, start_cycle
+    return succeed, start_cycle
+
 
 def logic_method(track):
     """
     """
 
+
+def test_direct_method(track_f_path, cycle_time):
+    """
+    测试直观法
+    """
+    # 加载tracks文件
+    if not os.path.isfile(track_f_path):
+        print('[Err]: invalid file path.')
+        return
+    if track_f_path.endswith('.npy'):
+        tracks = np.load(track_f_path, allow_pickle=True)
+    elif track_f_path.endswith('.txt'):
+        pass
+    else:
+        print('[Err]: invalid tracks file format.')
+        return
+
+    for i, track in enumerate(tracks):
+        succeed, start_cycle = direct_method(track,
+                                             cycle_time=cycle_time,
+                                             v_min=200, v_max=400,
+                                             a_max=15, angle_max=10,
+                                             m=3, n=4)
+        if succeed:
+            print('Track {:d} initialization succeeded @cycle {:d}.'
+                  .format(i, start_cycle))
+        else:
+            print('Track {:d} initialization failed.'.format(i))
 
 # ---------- Plot ----------
 
@@ -361,42 +436,6 @@ def plot_polar_cartesian_map(track):
     plt.show()
 
 
-# 同时生成几个航迹(track)
-def gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1):
-    """
-    :param M:  航迹数
-    :param N:  雷达扫描周期数
-    :param v0: 初始速度
-    :param a:  加速度
-    :param cycle_time: 雷达每周期扫描时间
-    :return:
-    """
-    tracks = []
-    for i in range(M):
-        # 随机主航向角度(°)
-        direction = np.random.rand() * 360
-
-        # ---------- 生成一条航迹
-        track = gen_track_cv_ca(N=N, v0=v0, a=a, direction=direction, cycle_time=1)
-        # ----------
-
-        tracks.append(track)
-        # print(track, '\n')
-    
-    # ---------- 序列化航迹数据到磁盘
-    tracks = np.array(tracks)
-    # print(tracks)
-
-    # ----- 存为npy文件
-    npz_save_path = './tracks'
-    np.save(npz_save_path, tracks)
-    print('{:s} saved.'.format(npz_save_path))
-
-    # ----- 存为txt文件
-
-    return np.array(tracks)
-
-
 def plot_tracks(track_f_path):
     """
     :param track_f_path:
@@ -406,7 +445,7 @@ def plot_tracks(track_f_path):
         '.',
         '+',
         '^',
-        'v', 
+        'v',
         '>',
         '<',
         's',
@@ -494,7 +533,7 @@ def plot_tracks(track_f_path):
 
         # 笛卡尔坐标
         x, y = cycle_plots[:, 0], cycle_plots[:, 1]
-        
+
         # 计算极径
         r = np.sqrt(x * x + y * y)
 
@@ -505,9 +544,11 @@ def plot_tracks(track_f_path):
 
         # 绘制点迹
         for j in range(M):
-            ax0.scatter(theta[j], r[j], c=cycle_colors[j], marker=cycle_markers[j])  # 散点图
+            ax0.scatter(theta[j], r[j], c=cycle_colors[j],
+                        marker=cycle_markers[j])  # 散点图
             ax0.text(theta[j], r[j], str(i))  # 为每个点绘制序号/笛卡尔坐标标签
-            ax1.scatter(x[j], y[j], c=cycle_colors[j], marker=cycle_markers[j])  # 散点图
+            ax1.scatter(x[j], y[j], c=cycle_colors[j],
+                        marker=cycle_markers[j])  # 散点图
             ax1.text(x[j], y[j], str(i))  # 为每个点绘制坐标标签
         plt.pause(0.5)
 
@@ -518,6 +559,7 @@ def plot_tracks(track_f_path):
 if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
     plot_tracks('./tracks_2_1s.npy')
+    test_direct_method('./tracks_2_1s.npy', cycle_time=1)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
