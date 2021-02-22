@@ -496,13 +496,13 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
         radian = math.acos(np.dot(s_12, s_23) / (l2norm_12*l2norm_23))
         degree = math.degrees(radian)
         if degree <= a_sigma:
-            return True
+            return True, 0
         else:
-            return False
+            return False, 1
 
         # TODO: 如果第三次扫描不满足条件, 继续判定第四次扫描
     else:  # 不满足基于距离的相关波门
-        return False
+        return False, 2
 
 
 def logic_method(track, cycle_time, sigma=160, m=3, n=4):
@@ -612,11 +612,18 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
 
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # page71-72
-                        if corrected_relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], s_sigma, a_sigma):
+                        is_pass, ret = corrected_relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], s_sigma, a_sigma)
+                        if is_pass:
                             n_pass += 1
                         else:
-                            print('Track init failed @cycle{:d}, object(plot) is not in corrected relating gate.'
+                            if ret == 2:
+                                 print('Track init failed @cycle{:d}, corrected relating gate: out of shift sigma.'
                                 .format(i))
+                            elif ret == 1:
+                                print('Track init failed @cycle{:d}, corrected relating gate: out of heading angle sigma.'
+                                .format(i))
+                            # print('Track init failed @cycle{:d}, object(plot) is not in corrected relating gate.'
+                            #     .format(i))
                     else:
                         print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
                               .format(i))
@@ -671,7 +678,7 @@ def test_track_init_methods(track_f_path, cycle_time, method):
         elif method == 2:   # 修正逻辑法
             succeed, start_cycle = corrected_logic_method(track,
                                                           cycle_time,
-                                                          s_sigma=160, a_sigma=7,
+                                                          s_sigma=70, a_sigma=7,
                                                           m=3, n=4)
 
         if succeed:
