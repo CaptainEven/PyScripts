@@ -393,27 +393,39 @@ def extrapolat_plot(plot_pre, plot_cur, s):
         if radian >= 0.0 and radian <= math.pi * 0.5:
             x_extra = x_cur + s * math.cos(radian)
             y_extra = y_cur + s * math.sin(radian)
+        else:
+            print('[Err]: current heading direction angle computed wrong!')
+            return None
 
     elif x_cur < x_pre and y_cur >= y_pre:    # 第二象限
-        radian  = math.atan2((y_cur - y_pre), (x_pre - x_cur))
+        radian = math.atan2((y_cur - y_pre), (x_pre - x_cur))
         if radian >= 0.0 and radian <= math.pi * 0.5:
             x_extra = x_cur - s * math.cos(radian)
             y_extra = y_cur + s * math.sin(radian)
+        else:
+            print('[Err]: current heading direction angle computed wrong!')
+            return None
 
     elif x_cur < x_pre and y_cur < y_pre:     # 第三象限
         radian = math.atan2((y_pre - y_cur), (x_pre - x_cur))
         if radian >= 0.0 and radian <= math.pi * 0.5:
             x_extra = x_cur - s * math.cos(radian)
             y_extra = y_cur - s * math.sin(radian)
+        else:
+            print('[Err]: current heading direction angle computed wrong!')
+            return None
 
     elif x_cur >= x_pre and y_cur < y_pre:     # 第四象限
         radian = math.atan2((y_pre - y_cur), (x_cur - x_pre))
         if radian >= 0.0 and radian <= math.pi * 0.5:
             x_extra = x_cur + s * math.cos(radian)
             y_extra = y_cur - s * math.sin(radian)
+        else:
+            print('[Err]: current heading direction angle computed wrong!')
+            return None
 
     return x_extra, y_extra
-    
+
 
 # 数据互联是通过相关波门实现的
 def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
@@ -434,14 +446,63 @@ def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
 
     # 预测位移值
     s = v * cycle_time
-    
+
     # 计算(直线)外推点
     x_extra, y_extra = extrapolat_plot(plot_pre, plot_cur, s)
 
     # 计算实际点迹与外推点迹之间的距离
-    dist = math.sqrt((x_nex - x_extra)*(x_nex - x_extra) + (y_nex - y_extra)*(y_nex - y_extra))
+    dist = math.sqrt((x_nex - x_extra)*(x_nex - x_extra) +
+                     (y_nex - y_extra)*(y_nex - y_extra))
 
     return dist <= sigma
+
+
+def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_sigma, a_sigma):
+    """
+    :param cycle_time:
+    :param v:
+    :param plot_pre:
+    :param plot_cur:
+    :param plot_next:
+    :param s_sigma: 位移sigma
+    :param a_sigma: 航向角度sigma(°)
+    :return:
+    """
+    # 取当前测试序列第三次扫描点迹的笛卡尔坐标
+    x_pre, y_pre = plot_pre
+    x_cur, y_cur = plot_cur
+    x_nex, y_nex = plot_next
+
+    # 预测位移值
+    s = v * cycle_time
+
+    # 计算(直线)外推点
+    x_extra, y_extra = extrapolat_plot(plot_pre, plot_cur, s)
+
+    # 计算实际点迹与外推点迹之间的距离
+    dist = math.sqrt((x_nex - x_extra)*(x_nex - x_extra) +
+                     (y_nex - y_extra)*(y_nex - y_extra))
+
+    # 修正判定
+    if dist <= s_sigma:
+        # ----- 第三次扫描角度判定: 计算余弦夹角
+        # 计算位移向量
+        s_12 = np.array([x_cur, y_cur]) - np.array([x_pre, y_pre])
+        s_23 = np.array([x_nex, y_nex]) - np.array([x_cur, y_cur])
+        l2norm_12 = np.linalg.norm(s_12, ord=2)
+        l2norm_23 = np.linalg.norm(s_23, ord=2)
+
+        # 计算角度(夹角余弦): 返回反余弦弧度值
+        radian = math.acos(np.dot(s_12, s_23) / (l2norm_12*l2norm_23))
+        degree = math.degrees(radian)
+        if degree <= a_sigma:
+            return True
+        else:
+            return False
+
+        # TODO: 如果第三次扫描不满足条件, 继续判定第四次扫描
+    else:  # 不满足基于距离的相关波门
+        return False
 
 
 def logic_method(track, cycle_time, sigma=160, m=3, n=4):
@@ -489,10 +550,76 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                         if relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], sigma=sigma):
                             n_pass += 1
                         else:
-                            print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
+                            print(
+                                'Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
                     else:
                         print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
-                        .format(i))  
+                              .format(i))
+            else:
+                continue
+
+        # 判定航迹是否起始成功
+        if n_pass >= m:
+            succeed = True
+
+        if succeed:
+            start_cycle = i
+            break
+        else:
+            continue  # 下一个滑窗
+
+    return succeed, start_cycle
+
+
+# ----- 修正逻辑法 -----
+def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4):
+    """
+    :param track:
+    :param cycle_time:
+    :param s_sigma: 位移sigma(m)
+    :param a_sigma: 航向角度sigma(°)
+    :param m:
+    :param n:
+    :return:
+    """
+    start_cycle = -1
+    N = track.shape[0]
+
+    # 窗口滑动
+    succeed = False
+    for i in range(2, N-n-1):
+        # 取滑窗
+        window = slide_window(track, n+1, i)
+
+        # 判定
+        n_pass = 0
+        for j, plot in enumerate(window):
+            if j >= 2:  # 从第三个点迹开始求v, a, angle
+                # 获取连续3个点迹
+                plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+
+                # 估算当前点迹的运动状态
+                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+
+                # # 航向偏移角度估算
+                # angle_in_degrees = math.degrees(angle_in_radians)
+                # angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+
+                # ----- 判定逻辑
+                if j >= 3 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
+                    # 初始波门判定: j是当前判定序列的第二次扫描
+                    if start_gate_check(cycle_time, window[j-1], window[j], v0=340):
+
+                        # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
+                        # page71-72
+                        if corrected_relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], s_sigma, a_sigma):
+                            n_pass += 1
+                        else:
+                            print('Track init failed @cycle{:d}, object(plot) is not in corrected relating gate.'
+                                .format(i))
+                    else:
+                        print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
+                              .format(i))
             else:
                 continue
 
@@ -514,7 +641,7 @@ def test_track_init_methods(track_f_path, cycle_time, method):
     测试直观法, 逻辑法
     :param track_f_path:
     :param cycle_time:
-    :param method:
+    :param method: 0: 直接法, 1: 逻辑法, 2: 修正逻辑法
     :return:
     """
     # 加载tracks文件
@@ -532,14 +659,20 @@ def test_track_init_methods(track_f_path, cycle_time, method):
     for i, track in enumerate(tracks):
         if method == 0:  # 直观法
             succeed, start_cycle = direct_method(track,
-                                                 cycle_time=cycle_time,
+                                                 cycle_time,
                                                  v_min=200, v_max=400,   # 2M
                                                  a_max=15, angle_max=7,  # 军机7°/s
                                                  m=3, n=4)
         elif method == 1:  # 逻辑法
-            succeed, start_cycle = logic_method(track, cycle_time,
+            succeed, start_cycle = logic_method(track, 
+                                                cycle_time,
                                                 sigma=160,
                                                 m=3, n=4)
+        elif method == 2:   # 修正逻辑法
+            succeed, start_cycle = corrected_logic_method(track,
+                                                          cycle_time,
+                                                          s_sigma=160, a_sigma=7,
+                                                          m=3, n=4)
 
         if succeed:
             print('Track {:d} initialization succeeded @cycle {:d}.'
@@ -794,7 +927,7 @@ def plot_tracks(track_f_path):
 if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
     # plot_tracks('./tracks_2_1s.npy')
-    test_track_init_methods('./tracks_2_1s.npy', cycle_time=1, method=1)
+    test_track_init_methods('./tracks_2_1s.npy', cycle_time=1, method=2)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
