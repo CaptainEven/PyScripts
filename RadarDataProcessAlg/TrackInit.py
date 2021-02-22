@@ -228,6 +228,10 @@ M 个观测值满足以下条件，那么启发式规则法就认定应起始一
 
 def slide_window(track, n=4, start_cycle=1):
     """
+    :param track:
+    :param n:
+    :param start_cycle:
+    :return:
     """
     window = [track[i] for i in range(start_cycle - 2, start_cycle + n)]
 
@@ -237,6 +241,9 @@ def slide_window(track, n=4, start_cycle=1):
 def get_v_a_angle(plots_3, cycle_time):
     """
     通过连续3个点迹计算最后一个点迹的速度、加速度、航向偏转角
+    :param plots_3:
+    :param cycle_time:
+    :return:
     """
     plot0, plot1, plot2 = plots_3
     x0, y0 = plot0
@@ -283,7 +290,6 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     :return:
     """
     start_cycle = -1
-
     N = track.shape[0]
 
     # 取滑动窗口
@@ -347,12 +353,18 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     return succeed, start_cycle
 
 
-def start_gate_check(cycle_time, plot_pre, plot_cur, v0):
+def start_gate_check(cycle_time, plot_pre, plot_cur, v0, min_ratio=0.1, max_ratio=2.5):
     """
+    用速度法建立起始波门
+    :param cycle_time:
+    :param plot_pre:
+    :param plot_cur:
+    :param v0:
+    :return:
     """
-    # 计算初始波门(环形波门的两个半径)
-    r_min = v0 * cycle_time * 0.1  # 小半径
-    r_max = v0 * cycle_time * 2.5  # 大半径
+    # ----- 计算初始波门(环形波门的两个半径)
+    r_min = v0 * cycle_time * min_ratio  # 小半径
+    r_max = v0 * cycle_time * max_ratio  # 大半径
 
     # 距离计算
     x_pre, y_pre = plot_pre
@@ -363,17 +375,95 @@ def start_gate_check(cycle_time, plot_pre, plot_cur, v0):
     return dist >= r_min and dist <= r_max
 
 
-def logic_method(track, cycle_time, sigma=200):
+def extrapolat_plot(plot_pre, plot_cur, s):
+    """
+    :param plot_pre: 前一个点迹
+    :param plot_cur: 当前点迹
+    :param s: 位移值
+    :return: 直线外推(预测)点迹
+    """
+    # 以前一个点迹为笛卡尔坐标原点建笛卡尔坐标系
+    # 判定当前点迹所在的象限
+    x_pre, y_pre = plot_pre
+    x_cur, y_cur = plot_cur
+
+    if x_cur >= x_pre and y_cur >= y_pre:     # 第一象限
+        # 计算与x轴夹角
+        radian = math.atan2((y_cur - y_pre), (x_cur - x_pre))
+        if radian >= 0.0 and radian <= math.pi * 0.5:
+            x_extra = x_cur + s * math.cos(radian)
+            y_extra = y_cur + s * math.sin(radian)
+
+    elif x_cur < x_pre and y_cur >= y_pre:    # 第二象限
+        radian  = math.atan2((y_cur - y_pre), (x_pre - x_cur))
+        if radian >= 0.0 and radian <= math.pi * 0.5:
+            x_extra = x_cur - s * math.cos(radian)
+            y_extra = y_cur + s * math.sin(radian)
+
+    elif x_cur < x_pre and y_cur < y_pre:     # 第三象限
+        radian = math.atan2((y_pre - y_cur), (x_pre - x_cur))
+        if radian >= 0.0 and radian <= math.pi * 0.5:
+            x_extra = x_cur - s * math.cos(radian)
+            y_extra = y_cur - s * math.sin(radian)
+
+    elif x_cur >= x_pre and y_cur < y_pre:     # 第四象限
+        radian = math.atan2((y_pre - y_cur), (x_cur - x_pre))
+        if radian >= 0.0 and radian <= math.pi * 0.5:
+            x_extra = x_cur + s * math.cos(radian)
+            y_extra = y_cur - s * math.sin(radian)
+
+    return x_extra, y_extra
+    
+
+# 数据互联是通过相关波门实现的
+def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
+    """
+    Page46
+    最简单的圆(环)形相关波门:
+    对每个暂时航迹进行外推，以外推点为中心，建立后续相关波门
+    :param cycle_time:
+    :param v:
+    :param plot_pre:
+    :param plot_cur:
+    :param plot_next:
+    :param sigma:
+    :return:
+    """
+    # 取当前测试序列第三次扫描点迹的笛卡尔坐标
+    x_nex, y_nex = plot_next
+
+    # 预测位移值
+    s = v * cycle_time
+    
+    # 计算(直线)外推点
+    x_extra, y_extra = extrapolat_plot(plot_pre, plot_cur, s)
+
+    # 计算实际点迹与外推点迹之间的距离
+    dist = math.sqrt((x_nex - x_extra)*(x_nex - x_extra) + (y_nex - y_extra)*(y_nex - y_extra))
+
+    return dist <= sigma
+
+
+def logic_method(track, cycle_time, sigma=160, m=3, n=4):
     """
     逻辑法
+    :param track:
+    :param cycle_time:
+    :param sigma:
+    :param m:
+    :param n:
+    :return:
     """
     # TODO: 动态更新sigma
 
+    start_cycle = -1
+    N = track.shape[0]
+
     # 窗口滑动
     succeed = False
-    for i in range(2, N-n):
+    for i in range(2, N-n-1):
         # 取滑窗
-        window = slide_window(track, n, i)
+        window = slide_window(track, n+1, i)
 
         # 判定
         n_pass = 0
@@ -385,16 +475,24 @@ def logic_method(track, cycle_time, sigma=200):
                 # 估算当前点迹的运动状态
                 v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
 
-                # 航向偏移角度估算
-                angle_in_degrees = math.degrees(angle_in_radians)
-                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                # # 航向偏移角度估算
+                # angle_in_degrees = math.degrees(angle_in_radians)
+                # angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
 
                 # ----- 判定逻辑...
-                if j >= 3:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
-                    # 初始波门判定
+                if j >= 3 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
+                    # 初始波门判定: j是当前判定序列的第二次扫描
                     if start_gate_check(cycle_time, window[j-1], window[j], v0=340):
-                        pass
-                        # 继续判断相关波门...
+
+                        # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
+                        # page71-72
+                        if relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], sigma=sigma):
+                            n_pass += 1
+                        else:
+                            print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
+                    else:
+                        print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
+                        .format(i))  
             else:
                 continue
 
@@ -411,9 +509,13 @@ def logic_method(track, cycle_time, sigma=200):
     return succeed, start_cycle
 
 
-def test_direct_method(track_f_path, cycle_time):
+def test_track_init_methods(track_f_path, cycle_time, method):
     """
-    测试直观法
+    测试直观法, 逻辑法
+    :param track_f_path:
+    :param cycle_time:
+    :param method:
+    :return:
     """
     # 加载tracks文件
     if not os.path.isfile(track_f_path):
@@ -428,11 +530,17 @@ def test_direct_method(track_f_path, cycle_time):
         return
 
     for i, track in enumerate(tracks):
-        succeed, start_cycle = direct_method(track,
-                                             cycle_time=cycle_time,
-                                             v_min=200, v_max=400,   # 2M
-                                             a_max=15, angle_max=7,  # 军机7°/s
-                                             m=3, n=4)
+        if method == 0:  # 直观法
+            succeed, start_cycle = direct_method(track,
+                                                 cycle_time=cycle_time,
+                                                 v_min=200, v_max=400,   # 2M
+                                                 a_max=15, angle_max=7,  # 军机7°/s
+                                                 m=3, n=4)
+        elif method == 1:  # 逻辑法
+            succeed, start_cycle = logic_method(track, cycle_time,
+                                                sigma=160,
+                                                m=3, n=4)
+
         if succeed:
             print('Track {:d} initialization succeeded @cycle {:d}.'
                   .format(i, start_cycle))
@@ -445,6 +553,8 @@ def test_direct_method(track_f_path, cycle_time):
 def plot_polar_map(track):
     """
     绘制雷达地图(极坐标)
+    :param track:
+    :return:
     """
     # 绘制基础地图(极坐标系)
     fig = plt.figure(figsize=[8, 8])
@@ -477,6 +587,8 @@ def plot_polar_map(track):
 def plot_cartesian_map(track):
     """
     绘制雷达地图(笛卡尔坐标)
+    :param track:
+    :return:
     """
     # 绘制基础地图(笛卡尔坐标系)
     fig = plt.figure(figsize=[8, 8])
@@ -503,6 +615,8 @@ def plot_cartesian_map(track):
 def plot_polar_cartesian_map(track):
     """
     绘制雷达地图(极坐标&笛卡尔坐标)
+    :param track:
+    :return:
     """
     # 绘制基础地图(极坐标系)
     fig = plt.figure(figsize=[16, 8])
@@ -679,8 +793,8 @@ def plot_tracks(track_f_path):
 
 if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
-    plot_tracks('./tracks_2_1s.npy')
-    test_direct_method('./tracks_2_1s.npy', cycle_time=1)
+    # plot_tracks('./tracks_2_1s.npy')
+    test_track_init_methods('./tracks_2_1s.npy', cycle_time=1, method=1)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
