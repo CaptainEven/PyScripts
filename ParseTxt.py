@@ -771,6 +771,6 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='F:/plm_seq_label_21_0127', one_plus=True)
+    process_labeling(data_root='F:/seq_label_21_0129', one_plus=True)
 
     print('\nDone.')

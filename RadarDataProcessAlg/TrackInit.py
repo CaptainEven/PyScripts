@@ -2,12 +2,43 @@
 
 import os
 import math
+import heapq
 import numpy as np
 import matplotlib.pyplot as plt
 from random import sample
-
+from collections import defaultdict
+from scipy.stats import poisson
+from scipy.optimize import linear_sum_assignment as linear_assignment
 
 # ---------- Parameters ----------
+markers = [
+    '.',
+    '+',
+    '^',
+    'v',
+    '>',
+    '<',
+    's',
+    'p',
+    '*',
+    'h',
+    'H',
+    'd',
+    'D',
+    'x',
+    '|',
+    '_'
+]
+
+colors = [
+    'b',
+    'g',
+    'r',
+    'c',
+    'm',
+    'y'
+]
+
 # TrackStates = {
 #     'Temporaty': 0,
 #     'Reliable':  1,
@@ -16,15 +47,41 @@ from random import sample
 # }
 
 TrackStates = {
-    0: 'Potential',   # 可能航迹
+    0: 'Potential',  # 可能航迹
     1: 'Temporaty',  # 暂时航迹
-    2: 'Reliable',   # 可靠航迹
-    3: 'Fixed',      # 固定航迹
+    2: 'Reliable',  # 可靠航迹
+    3: 'Fixed',  # 固定航迹
 }
 
+# ---------- Data structure ----------
+class Plot(object):
+    def __init__(self, cycle, x, y, v, a, heading):
+        """
+        :param cycle: 雷达扫描周期(s)
+        :param x: 点迹笛卡尔坐标x(m)
+        :param y: 点迹笛卡尔坐标y(m)
+        :param v: 点迹速度(m/s)
+        :param a: 点迹加速度(m/s²)
+        :param heading: °
+        """
+        self.cycle_ = 0
+        self.x_ = x
+        self.y_ = y
+        self.v_ = 0.0
+        self.a_ = 0.0
+        self.heading_ = 0.0
 
-# ---------- Generate Data ----------
 
+class Track(object):
+    def __init__(self):
+        self.state_ = 0  # 航迹状态
+        self.plots_ = []
+
+    def add_plot(self, plot):
+        self.plots_.append(plot)
+
+
+# ---------- Data(plots/tracks) generation ----------
 def move_in_a_cycle(x0, y0, v0, a, direction, t=3):
     """
     @param x0: 起始坐标x
@@ -123,14 +180,14 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
 
     # 根据起始坐标(判断其所在笛卡尔坐标象限)设置direction
     # 模拟敌机来袭从远处飞往近处
-    if x0 >= 0.0 and y0 >= 0.0:    # 第一象限
+    if x0 >= 0.0 and y0 >= 0.0:  # 第一象限
         direction = np.random.randint(200, 250)  # 飞往第三象限
-    elif x0 >= 0.0 and y0 < 0.0:   # 第四象限
+    elif x0 >= 0.0 and y0 < 0.0:  # 第四象限
         direction = np.random.randint(110, 160)  # 飞往第二象限
-    elif x0 < 0.0 and y0 >= 0.0:   # 第二象限
+    elif x0 < 0.0 and y0 >= 0.0:  # 第二象限
         direction = np.random.randint(290, 340)  # 飞往第四象限
-    elif x0 < 0.0 and y0 < 0.0:    # 第三象限                        #
-        direction = np.random.randint(20, 70)    # 飞往第一象限
+    elif x0 < 0.0 and y0 < 0.0:  # 第三象限                        #
+        direction = np.random.randint(20, 70)  # 飞往第一象限
 
     # 运动模型: 匀(加)速直线
     # 生成航迹
@@ -138,17 +195,17 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
     for i in range(N):
         # ---------- 每个周期都加入一定的随机扰动(噪声)
         # 为航向增加随机噪声扰动
-        direction_noise = ((1-(-1)) * np.random.random() + (-1)) * 10
+        direction_noise = ((1 - (-1)) * np.random.random() + (-1)) * 10.0
         direction += direction_noise
         direction = direction if direction >= 0.0 else direction + 360.0
+        direction = direction if direction <= 360.0 else direction - 360.0
 
         # 为加速度增加随机噪声扰动: 即航速扰动
-        a_noise = ((1-(-1)) * np.random.random() + (-1)) * 100
+        a_noise = ((1 - (-1)) * np.random.random() + (-1)) * 100
         a += a_noise
 
         # logging...
-        print('Iter {:d} | heading direction: {:.3f}° | acceleration: {:.3f}m/s²'
-              .format(i, direction))
+        print('Iter {:d} | heading direction: {:.3f}°'.format(i, direction))
 
         # 一个扫描周期目标状态改变量
         ret = move_in_a_cycle(x0, y0, v0, a, direction, cycle_time)
@@ -159,30 +216,20 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
 
         x, y = ret
         x, y = int(x), int(y)
-        if x < -10000 + 1 or y < -10000 + 1 or x > 10000 - 1 or y > 10000 - 1:
-            # continue
-            # break
 
-            # 保存当前扫描周期的笛卡尔坐标
-            track.append([x, y])
+        # 保存当前扫描周期的笛卡尔坐标
+        track.append([x, y])
 
-            # 更新当前笛卡尔坐标
-            x0, y0 = x, y
-        else:
-            # print(x, y)
-
-            # 保存当前扫描周期的笛卡尔坐标
-            track.append([x, y])
-
-            # 更新当前笛卡尔坐标
-            x0, y0 = x, y
+        # 更新当前笛卡尔坐标
+        x0, y0 = x, y
 
     return track
+
 
 # 同时生成几个航迹(track)
 
 
-def gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1):
+def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
     """
     :param M:  航迹数
     :param N:  雷达扫描周期数
@@ -197,20 +244,55 @@ def gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1):
         direction = np.random.rand() * 360
 
         # ---------- 生成一条航迹
-        track = gen_track_cv_ca(
-            N=N, v0=v0, a=a, direction=direction, cycle_time=1)
+        track = gen_track_cv_ca(N=N, v0=v0, a=a, direction=direction, cycle_time=1)
         # ----------
 
         tracks.append(track)
         # print(track, '\n')
+    tracks = np.array(tracks)
+
+    # 为生成的航迹添加随机背景杂波
+    plots_in_each_cycle = []
+    max_noise_num = 10
+    for i in range(N):  # 遍历每一个雷达扫描周期
+        probs = poisson.pmf(np.arange(max_noise_num + 1), 0.99)  # 泊松分布概率
+        probs = probs[1:]
+        rand_prob = np.random.random()
+        probs = probs * rand_prob  # 随机概率
+        # print(probs)
+
+        # 按照概率生成杂波点迹
+        noise_plots = []
+        for j in range(max_noise_num):
+            if probs[j] > 0.1:
+                x = ((1 - (-1)) * np.random.random() + (-1)) * 35000.0
+                y = ((1 - (-1)) * np.random.random() + (-1)) * 35000.0
+                print(x, y)
+                noise_plots.append([x, y])
+
+        plots = tracks[:, i, :]
+        if len(noise_plots) > 0:
+            noise_plots = np.array(noise_plots).reshape((-1, 2))
+            plot_list = np.concatenate((plots, noise_plots), axis=0)
+            plots_in_each_cycle.append(plot_list)
+        else:
+            plots_in_each_cycle.append(plots)
+    plots_in_each_cycle = np.array(plots_in_each_cycle)
+    print(plots_in_each_cycle)
 
     # ---------- 序列化航迹数据到磁盘
-    tracks = np.array(tracks)
+    # tracks = np.array(tracks)
     # print(tracks)
 
     # ----- 存为npy文件
-    npz_save_path = './tracks'
+    # 保存原始tracks文件
+    npz_save_path = './tracks_{:d}s'.format(cycle_time)
     np.save(npz_save_path, tracks)
+    print('{:s} saved.'.format(npz_save_path))
+
+    # 保存含有杂波背景的航迹文件
+    npz_save_path = './plots_in_each_cycle_{:d}s'.format(cycle_time)
+    np.save(npz_save_path, plots_in_each_cycle)
     print('{:s} saved.'.format(npz_save_path))
 
     # ----- 存为txt文件
@@ -251,8 +333,8 @@ def get_v_a_angle(plots_3, cycle_time):
     x2, y2 = plot2
 
     # 计算位移数值
-    dist0 = math.sqrt((x1-x0)*(x1-x0) + (y1-y0)*(y1-y0))
-    dist1 = math.sqrt((x2-x1)*(x2-x1) + (y2-y1)*(y2-y1))
+    dist0 = math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0))
+    dist1 = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
 
     # 计算速度
     v0 = dist0 / cycle_time
@@ -267,9 +349,54 @@ def get_v_a_angle(plots_3, cycle_time):
     s1 = np.array([x2, y2]) - np.array([x1, y1])
 
     # 计算角度(夹角余弦): 返回反余弦弧度值
-    radian = math.acos(np.dot(s0, s1) / (dist0*dist1))
+    radian = math.acos(np.dot(s0, s1) / (dist0 * dist1))
 
     return v1, a, radian
+
+
+def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
+    """
+    :param track:
+    :param cycle_time:
+    :param v_min:
+    :param v_max:
+    :param a_max:
+    :param angle_max:
+    :param m:
+    :param n:
+    :return:
+    """
+    start_cycle = -1
+    N = track.shape[0]
+
+    # 取滑动窗口
+    succeed = False
+    for i in range(2, N - n):
+        # 取滑窗
+        window = slide_window(track, n, i)
+
+        # 判定
+        n_pass = 0
+        for j, plot in enumerate(window):
+            if j >= 2:  # 从第三个点迹开始求v, a, angle
+                # 获取连续3个点迹
+                plots_3_cycles = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
+
+                # 获取连续3个cycle点迹的映射关系
+                plots_pre = plots_3_cycles[0]
+                plots_cur = plots_3_cycles[1]
+                plots_nex = plots_3_cycles[2]
+                K = min(plots_pre.shape[0], plots_cur.shape[0], plots_nex.shape[0])
+
+                mapping_nex_to_cur = matching_plots_nn(plots_nex, plots_cur, K)
+                mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre, K)
+                print(mapping_nex_to_cur)
+                print(mapping_cur_to_pre)
+
+                # 建立K个暂时航迹
+                tracks = []
+                for k in range(K):
+                    pass
 
 
 # Page 57
@@ -294,7 +421,7 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
 
     # 取滑动窗口
     succeed = False
-    for i in range(2, N-n):
+    for i in range(2, N - n):
         # 取滑窗
         window = slide_window(track, n, i)
 
@@ -303,7 +430,7 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
         for j, plot in enumerate(window):
             if j >= 2:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
-                plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+                plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
 
                 # 估算当前点迹的运动状态
                 v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
@@ -314,9 +441,9 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
 
                 # 门限判定
                 if v >= v_min and \
-                   v <= v_max and \
-                   a <= a_max and \
-                   angle_in_degrees < angle_max:
+                        v <= v_max and \
+                        a <= a_max and \
+                        angle_in_degrees < angle_max:
                     n_pass += 1
 
                 else:  # 记录航迹起始失败原因
@@ -387,7 +514,7 @@ def extrapolat_plot(plot_pre, plot_cur, s):
     x_pre, y_pre = plot_pre
     x_cur, y_cur = plot_cur
 
-    if x_cur >= x_pre and y_cur >= y_pre:     # 第一象限
+    if x_cur >= x_pre and y_cur >= y_pre:  # 第一象限
         # 计算与x轴夹角
         radian = math.atan2((y_cur - y_pre), (x_cur - x_pre))
         if radian >= 0.0 and radian <= math.pi * 0.5:
@@ -397,7 +524,7 @@ def extrapolat_plot(plot_pre, plot_cur, s):
             print('[Err]: current heading direction angle computed wrong!')
             return None
 
-    elif x_cur < x_pre and y_cur >= y_pre:    # 第二象限
+    elif x_cur < x_pre and y_cur >= y_pre:  # 第二象限
         radian = math.atan2((y_cur - y_pre), (x_pre - x_cur))
         if radian >= 0.0 and radian <= math.pi * 0.5:
             x_extra = x_cur - s * math.cos(radian)
@@ -406,7 +533,7 @@ def extrapolat_plot(plot_pre, plot_cur, s):
             print('[Err]: current heading direction angle computed wrong!')
             return None
 
-    elif x_cur < x_pre and y_cur < y_pre:     # 第三象限
+    elif x_cur < x_pre and y_cur < y_pre:  # 第三象限
         radian = math.atan2((y_pre - y_cur), (x_pre - x_cur))
         if radian >= 0.0 and radian <= math.pi * 0.5:
             x_extra = x_cur - s * math.cos(radian)
@@ -415,7 +542,7 @@ def extrapolat_plot(plot_pre, plot_cur, s):
             print('[Err]: current heading direction angle computed wrong!')
             return None
 
-    elif x_cur >= x_pre and y_cur < y_pre:     # 第四象限
+    elif x_cur >= x_pre and y_cur < y_pre:  # 第四象限
         radian = math.atan2((y_pre - y_cur), (x_cur - x_pre))
         if radian >= 0.0 and radian <= math.pi * 0.5:
             x_extra = x_cur + s * math.cos(radian)
@@ -451,8 +578,8 @@ def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
     x_extra, y_extra = extrapolat_plot(plot_pre, plot_cur, s)
 
     # 计算实际点迹与外推点迹之间的距离
-    dist = math.sqrt((x_nex - x_extra)*(x_nex - x_extra) +
-                     (y_nex - y_extra)*(y_nex - y_extra))
+    dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
+                     (y_nex - y_extra) * (y_nex - y_extra))
 
     return dist <= sigma
 
@@ -480,8 +607,8 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
     x_extra, y_extra = extrapolat_plot(plot_pre, plot_cur, s)
 
     # 计算实际点迹与外推点迹之间的距离
-    dist = math.sqrt((x_nex - x_extra)*(x_nex - x_extra) +
-                     (y_nex - y_extra)*(y_nex - y_extra))
+    dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
+                     (y_nex - y_extra) * (y_nex - y_extra))
 
     # 修正判定
     if dist <= s_sigma:
@@ -493,7 +620,7 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
         l2norm_23 = np.linalg.norm(s_23, ord=2)
 
         # 计算角度(夹角余弦): 返回反余弦弧度值
-        radian = math.acos(np.dot(s_12, s_23) / (l2norm_12*l2norm_23))
+        radian = math.acos(np.dot(s_12, s_23) / (l2norm_12 * l2norm_23))
         degree = math.degrees(radian)
         if degree <= a_sigma:
             return True, 0
@@ -522,16 +649,16 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
 
     # 窗口滑动
     succeed = False
-    for i in range(2, N-n-1):
+    for i in range(2, N - n - 1):
         # 取滑窗
-        window = slide_window(track, n+1, i)
+        window = slide_window(track, n + 1, i)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
             if j >= 2:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
-                plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+                plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
 
                 # 估算当前点迹的运动状态
                 v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
@@ -543,15 +670,14 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                 # ----- 判定逻辑...
                 if j >= 3 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
-                    if start_gate_check(cycle_time, window[j-1], window[j], v0=340):
+                    if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
 
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # page71-72
-                        if relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], sigma=sigma):
+                        if relate_gate_check(cycle_time, v, window[j - 1], window[j], window[j + 1], sigma=sigma):
                             n_pass += 1
                         else:
-                            print(
-                                'Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
+                            print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
                     else:
                         print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
                               .format(i))
@@ -587,43 +713,46 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
 
     # 窗口滑动
     succeed = False
-    for i in range(2, N-n-1):
+    for i in range(2, N - n - 1):
         # 取滑窗
-        window = slide_window(track, n+1, i)
+        window = slide_window(track, n + 1, i)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
             if j >= 2:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
-                plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+                plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
 
                 # 估算当前点迹的运动状态
                 v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
 
-                # # 航向偏移角度估算
-                # angle_in_degrees = math.degrees(angle_in_radians)
-                # angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                # 航向偏移角度估算
+                angle_in_degrees = math.degrees(angle_in_radians)
+                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
+                      .format(i, v, a, angle_in_degrees))
 
                 # ----- 判定逻辑
                 if j >= 3 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
-                    if start_gate_check(cycle_time, window[j-1], window[j], v0=340):
+                    if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
 
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # page71-72
-                        is_pass, ret = corrected_relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], s_sigma, a_sigma)
+                        is_pass, ret = corrected_relate_gate_check(cycle_time, v,
+                                                                   window[j - 1], window[j], window[j + 1],
+                                                                   s_sigma, a_sigma)
                         if is_pass:
                             n_pass += 1
                         else:
                             if ret == 2:
-                                 print('Track init failed @cycle{:d}, corrected relating gate: out of shift sigma.'
-                                .format(i))
+                                print('Track init failed @cycle{:d}, corrected relating gate: out of shift sigma.'
+                                      .format(i))
                             elif ret == 1:
-                                print('Track init failed @cycle{:d}, corrected relating gate: out of heading angle sigma.'
-                                .format(i))
-                            # print('Track init failed @cycle{:d}, object(plot) is not in corrected relating gate.'
-                            #     .format(i))
+                                print(
+                                    'Track init failed @cycle{:d}, corrected relating gate: out of heading angle sigma.'
+                                        .format(i))
                     else:
                         print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
                               .format(i))
@@ -636,11 +765,82 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
 
         if succeed:
             start_cycle = i
-            break
+            break  # 航迹起始成功, 建立了稳定的航迹, 后续需要进行航机保持判断(点航相关)
         else:
             continue  # 下一个滑窗
 
     return succeed, start_cycle
+
+
+def matching_plots_nn(plots_0, plots_1, K):
+    """
+    :param plots_0:
+    :param plots_1:
+    :param K:
+    :return:
+    """
+    M, N = plots_0.shape[0], plots_1.shape[0]
+
+    mapping = {}
+    cost_mat = np.zeros((M, N), dtype=np.float32)
+    for i, plot_0 in enumerate(plots_0):
+        for j, plot_1 in enumerate(plots_1):
+            shift = plot_0 - plot_1
+            l2_dist = np.linalg.norm(shift, ord=2)
+            cost_mat[i][j] = l2_dist
+
+    # 取topK: cost最小
+    # k_smallest = heapq.nsmallest(K, cost_mat.ravel().tolist())
+    inds = np.argpartition(cost_mat.ravel(), K)[:K]
+    inds_i = inds // N
+    inds_j = inds % N
+    # k_smallest = cost_mat[inds_i, inds_j]
+
+    for i, j in zip(inds_i, inds_j):
+        mapping[i] = j
+
+    return mapping
+
+
+def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
+    """
+    :param plots_f_path:
+    :param cycle_time:
+    :param method:
+    :return:
+    """
+    # 加载tracks文件
+    if not os.path.isfile(plots_f_path):
+        print('[Err]: invalid file path.')
+        return
+    if plots_f_path.endswith('.npy'):
+        plots_per_cycle = np.load(plots_f_path, allow_pickle=True)
+    elif plots_f_path.endswith('.txt'):
+        pass
+    else:
+        print('[Err]: invalid tracks file format.')
+        return
+
+    N = plots_per_cycle.shape[0]
+    print('Total {:d} radar cycles.'.format(N))
+
+    for i in range(N):  # 处理每一个cycle
+        # if i >= 1:  # 从第三个扫描周期开始
+        #     plots_pre = plots_per_cycle[i - 1]
+        #     plots_cur = plots_per_cycle[i]
+        #     plots_nex = plots_per_cycle[i + 1]
+        #
+        #     # 当前扫描与前次扫面的点迹进行NN匹配: 局部贪心匹配, 计算代价矩阵
+        #     # TODO: 进行匈牙利匹配
+        #     mapping_nex_to_cur = matching_plots_nn(plots_nex, plots_cur)
+        #     mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre)
+
+        if method == 0:  # 直观法
+            succeed, start_cycle = direct_method_with_bkg(plots_per_cycle,
+                                                          cycle_time,
+                                                          v_min=200, v_max=400,  # 2M
+                                                          a_max=15, angle_max=7,  # 军机7°/s
+                                                          m=3, n=4)
 
 
 def test_track_init_methods(track_f_path, cycle_time, method):
@@ -667,25 +867,30 @@ def test_track_init_methods(track_f_path, cycle_time, method):
         if method == 0:  # 直观法
             succeed, start_cycle = direct_method(track,
                                                  cycle_time,
-                                                 v_min=200, v_max=400,   # 2M
+                                                 v_min=200, v_max=400,  # 2M
                                                  a_max=15, angle_max=7,  # 军机7°/s
                                                  m=3, n=4)
         elif method == 1:  # 逻辑法
-            succeed, start_cycle = logic_method(track, 
+            succeed, start_cycle = logic_method(track,
                                                 cycle_time,
                                                 sigma=160,
                                                 m=3, n=4)
-        elif method == 2:   # 修正逻辑法
+        elif method == 2:  # 修正逻辑法
             succeed, start_cycle = corrected_logic_method(track,
                                                           cycle_time,
-                                                          s_sigma=70, a_sigma=7,
+                                                          s_sigma=160, a_sigma=7,
                                                           m=3, n=4)
 
         if succeed:
             print('Track {:d} initialization succeeded @cycle {:d}.'
                   .format(i, start_cycle))
+
+            # ----- 初始化航迹
+
+            # 后续点航相关过程...
         else:
             print('Track {:d} initialization failed.'.format(i))
+
 
 # ---------- Plot ----------
 
@@ -797,39 +1002,82 @@ def plot_polar_cartesian_map(track):
     plt.show()
 
 
+def plot_plots_in_each_cycle(plots_f_path):
+    """
+    可视化含有杂波背景的点迹数据
+    :param plots_f_path:
+    :return:
+    """
+    # 加载tracks文件
+    if not os.path.isfile(plots_f_path):
+        print('[Err]: invalid file path.')
+        return
+    if plots_f_path.endswith('.npy'):
+        tracks = np.load(plots_f_path, allow_pickle=True)
+    elif plots_f_path.endswith('.txt'):
+        pass
+    else:
+        print('[Err]: invalid tracks file format.')
+        return
+
+    # 绘制基础地图(极坐标系)
+    fig = plt.figure(figsize=[16, 8])
+    fig.suptitle('Radar')
+
+    ax0 = plt.subplot(121, projection="polar")
+    ax0.set_theta_zero_location('E')
+    ax0.set_theta_direction(-1)  # anti-clockwise
+    ax0.set_rmin(10)
+    ax0.set_rmax(100000)
+    ax0.set_rticks(np.arange(-50000, 50000, 3000))
+    ax0.set_title('polar')
+
+    ax1 = plt.subplot(122)
+    ax1.set_xticks(np.arange(-50000, 50000, 10000))
+    ax1.set_yticks(np.arange(-50000, 50000, 10000))
+    ax1.set_title('cartesian')
+
+    # ----- 同一扫描周期之内同时绘制所有点迹
+    N = tracks.shape[0]  # 含有杂波背景的数据, 此时N未知
+    for i in range(N):  # 遍历每个雷达扫描周期
+        color = sample(colors, 1)[0]
+        marker = sample(markers, 1)[0]
+
+        cycle_plots = tracks[i]  # 当前cycle的所有点迹坐标
+        # print(cycle_plots)
+
+        # 笛卡尔坐标
+        x, y = cycle_plots[:, 0], cycle_plots[:, 1]
+
+        # 计算极径
+        r = np.sqrt(x * x + y * y)
+
+        # 计算极角
+        theta = np.arctan2(y, x)
+        neg_inds = np.where(theta < 0.0)
+        theta[neg_inds] += np.pi * 2.0
+
+        # 绘制极坐标点迹
+        ax0.scatter(theta, r, c=color, marker=marker)
+        for j in range(theta.shape[0]):
+            ax0.text(theta[j], r[j], str(i))
+
+        # 绘制笛卡尔坐标点迹
+        ax1.scatter(x, y, c=color, marker=marker)
+        for j in range(x.shape[0]):
+            ax1.text(x[j], y[j], str(i))
+
+        plt.pause(0.5)
+
+    # 绘图展示
+    plt.show()
+
+
 def plot_tracks(track_f_path):
     """
     :param track_f_path:
     :return:
     """
-    markers = [
-        '.',
-        '+',
-        '^',
-        'v',
-        '>',
-        '<',
-        's',
-        'p',
-        '*',
-        'h',
-        'H',
-        'd',
-        'D',
-        'x',
-        '|',
-        '_'
-    ]
-
-    colors = [
-        'b',
-        'g',
-        'r',
-        'c',
-        'm',
-        'y'
-    ]
-
     # 加载tracks文件
     if not os.path.isfile(track_f_path):
         print('[Err]: invalid file path.')
@@ -842,7 +1090,7 @@ def plot_tracks(track_f_path):
         print('[Err]: invalid tracks file format.')
         return
 
-     # 绘制基础地图(极坐标系)
+    # 绘制基础地图(极坐标系)
     fig = plt.figure(figsize=[16, 8])
     fig.suptitle('Radar')
 
@@ -901,7 +1149,7 @@ def plot_tracks(track_f_path):
         # 计算极角
         theta = np.arctan2(y, x)
         neg_inds = np.where(theta < 0.0)
-        theta[neg_inds] += np.pi*2.0
+        theta[neg_inds] += np.pi * 2.0
 
         # 绘制点迹组成的航迹
         for j in range(M):
@@ -934,7 +1182,12 @@ def plot_tracks(track_f_path):
 if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
     # plot_tracks('./tracks_2_1s.npy')
-    test_track_init_methods('./tracks_2_1s.npy', cycle_time=1, method=2)
+    # test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=2)
+
+    # plot_plots_in_each_cycle('./RadarDataProcessAlg/plots_in_each_cycle_1s.npy')
+    test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
+                                     cycle_time=1,
+                                     method=0)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
