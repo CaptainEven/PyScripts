@@ -375,7 +375,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
         # 取滑窗
         window = slide_window(plots_per_cycle, n, start_cycle=i)
 
-        # 判定
+        # 窗口检出数计数
         n_pass = 0
         for j, plot in enumerate(window):
             if j >= 2 and j < len(window) - 1:  # 从第三个点迹开始求v, a, angle
@@ -401,6 +401,8 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                 # 输出正确的匹配结果
                 print(mapping_nex_to_cur)
                 print(mapping_cur_to_pre)
+
+                # 更新正确的暂时航迹数
                 K = min(len(list(mapping_nex_to_cur.keys())), len(list(mapping_cur_to_pre.keys())))
 
                 # 建立K个暂时航迹
@@ -438,7 +440,13 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                         if n_pass >= m:
                             start_cycle = i
                             print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
-                            continue
+
+                            # 初始化稳定的航迹对象(航迹初始化成功)
+
+                            # 重置n_pass
+                            n_pass = 0
+
+                            continue  # 判断下一个航迹
 
                     else:  # 记录航迹起始失败原因: logging
                         is_v_pass = v >= v_min and v <= v_max
