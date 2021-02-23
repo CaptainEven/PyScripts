@@ -53,6 +53,7 @@ TrackStates = {
     3: 'Fixed',  # 固定航迹
 }
 
+
 # ---------- Data structure ----------
 class Plot(object):
     def __init__(self, cycle, x, y, v, a, heading):
@@ -371,7 +372,7 @@ def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=
 
     # 取滑动窗口
     succeed = False
-    for i in range(2, N - n):
+    for i in range(2, N - n):  # cycle i
         # 取滑窗
         window = slide_window(track, n, i)
 
@@ -396,7 +397,62 @@ def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=
                 # 建立K个暂时航迹
                 tracks = []
                 for k in range(K):
-                    pass
+                    # 为每个暂时Track添加点迹
+                    nex_idx = list(mapping_nex_to_cur.keys())[k]
+                    cur_idx = mapping_nex_to_cur[nex_idx]
+                    pre_idx = mapping_cur_to_pre[cur_idx]
+
+                    # 取组成当前暂时航迹的点迹
+                    plot_locs = [plots_pre[pre_idx], plots_cur[cur_idx], plots_nex[nex_idx]]
+                    # print(plot_locs)
+
+                    # 估算当前点迹的运动状态
+                    v, a, angle_in_radians = get_v_a_angle(plot_locs, cycle_time)
+
+                    # 航向偏移角度估算
+                    angle_in_degrees = math.degrees(angle_in_radians)
+                    angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                    angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
+                    # print(v, a, angle_in_degrees)
+
+                    # 门限判定
+                    if v >= v_min and \
+                            v <= v_max and \
+                            a <= a_max and \
+                            angle_in_degrees < angle_max:
+                        n_pass += 1
+
+                    else:  # 记录航迹起始失败原因
+                        is_v_pass = v >= v_min and v <= v_max
+                        is_a_pass = a <= a_max
+                        is_angle_pass = angle_in_degrees <= angle_max
+
+                        if not is_v_pass:
+                            if v < v_min:
+                                print('Track{:d} init failed @cycle{:d}, velocity threshold: {:.3f} < {:.3f}m/s'
+                                      .format(k, i, float(v), v_min))
+                            elif v > v_max:
+                                print('Track{:d} init failed @cycle{:d}, velocity threshold: {:.3f} > {:.3f}m/s'
+                                      .format(k, i, float(v), v_max))
+                        if not is_a_pass:
+                            print('Track{:d} init failed @cycle{:d}, acceleration threshold: {:.3f} > {:.3f}m/s²'
+                                  .format(k, i, a, float(a_max)))
+                        if not is_angle_pass:
+                            print('Track{:d} init failed @cycle{:d}, heading angle threshold: {:.3f} > {:.3f}°'
+                                  .format(k, i, angle_in_degrees, angle_max))
+            else:
+                continue
+
+        # 判定航迹是否起始成功
+        if n_pass >= m:
+            succeed = True
+        if succeed:
+            start_cycle = i
+            break
+        else:
+            continue  # 下一个滑窗
+
+    return succeed, start_cycle, K
 
 
 # Page 57
@@ -438,6 +494,7 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
                 # 航向偏移角度估算
                 angle_in_degrees = math.degrees(angle_in_radians)
                 angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
 
                 # 门限判定
                 if v >= v_min and \
@@ -785,8 +842,8 @@ def matching_plots_nn(plots_0, plots_1, K):
     cost_mat = np.zeros((M, N), dtype=np.float32)
     for i, plot_0 in enumerate(plots_0):
         for j, plot_1 in enumerate(plots_1):
-            shift = plot_0 - plot_1
-            l2_dist = np.linalg.norm(shift, ord=2)
+            shift_vector = plot_0 - plot_1
+            l2_dist = np.linalg.norm(shift_vector, ord=2)
             cost_mat[i][j] = l2_dist
 
     # 取topK: cost最小
@@ -824,23 +881,31 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     N = plots_per_cycle.shape[0]
     print('Total {:d} radar cycles.'.format(N))
 
-    for i in range(N):  # 处理每一个cycle
-        # if i >= 1:  # 从第三个扫描周期开始
-        #     plots_pre = plots_per_cycle[i - 1]
-        #     plots_cur = plots_per_cycle[i]
-        #     plots_nex = plots_per_cycle[i + 1]
-        #
-        #     # 当前扫描与前次扫面的点迹进行NN匹配: 局部贪心匹配, 计算代价矩阵
-        #     # TODO: 进行匈牙利匹配
-        #     mapping_nex_to_cur = matching_plots_nn(plots_nex, plots_cur)
-        #     mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre)
+    # for i in range(N):  # 处理每一个cycle
+    # if i >= 1:  # 从第三个扫描周期开始
+    #     plots_pre = plots_per_cycle[i - 1]
+    #     plots_cur = plots_per_cycle[i]
+    #     plots_nex = plots_per_cycle[i + 1]
+    #
+    #     # 当前扫描与前次扫面的点迹进行NN匹配: 局部贪心匹配, 计算代价矩阵
+    #     # TODO: 进行匈牙利匹配
+    #     mapping_nex_to_cur = matching_plots_nn(plots_nex, plots_cur)
+    #     mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre)
 
-        if method == 0:  # 直观法
-            succeed, start_cycle = direct_method_with_bkg(plots_per_cycle,
-                                                          cycle_time,
-                                                          v_min=200, v_max=400,  # 2M
-                                                          a_max=15, angle_max=7,  # 军机7°/s
-                                                          m=3, n=4)
+    if method == 0:  # 直观法
+        succeed, start_cycle, K = direct_method_with_bkg(plots_per_cycle,
+                                                         cycle_time,
+                                                         v_min=200, v_max=400,  # 2M
+                                                         a_max=15, angle_max=7,  # 军机7°/s
+                                                         m=3, n=4)
+    if succeed:
+        print('{:d} tracks initialization succeeded @cycle {:d}.'
+              .format(K, start_cycle))
+
+        # ----- 初始化航迹
+        # 后续点航相关过程...
+    else:
+        print('Track initialization failed.')
 
 
 def test_track_init_methods(track_f_path, cycle_time, method):
