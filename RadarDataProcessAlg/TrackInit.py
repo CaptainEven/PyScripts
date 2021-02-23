@@ -355,9 +355,9 @@ def get_v_a_angle(plots_3, cycle_time):
     return v1, a, radian
 
 
-def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
+def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     """
-    :param track:
+    :param plots_per_cycle:
     :param cycle_time:
     :param v_min:
     :param v_max:
@@ -367,23 +367,22 @@ def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=
     :param n:
     :return:
     """
-    start_cycle = -1
-    N = track.shape[0]
+    N = plots_per_cycle.shape[0]  # number of cycles
 
     # 取滑动窗口
     succeed = False
     for i in range(2, N - n):  # cycle i
         # 取滑窗
-        window = slide_window(track, n, i)
+        window = slide_window(plots_per_cycle, n, start_cycle=i)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 2:  # 从第三个点迹开始求v, a, angle
+            if j >= 2 and j < len(window) - 1:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
                 plots_3_cycles = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
 
-                # 获取连续3个cycle点迹的映射关系
+                # 获取连续3个cycle点迹的映射(idx mapping)关系
                 plots_pre = plots_3_cycles[0]
                 plots_cur = plots_3_cycles[1]
                 plots_nex = plots_3_cycles[2]
@@ -391,12 +390,25 @@ def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=
 
                 mapping_nex_to_cur = matching_plots_nn(plots_nex, plots_cur, K)
                 mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre, K)
+
+                # 映射链式判断: 连续3个cycle的点迹能否组成一个链
+                if set(mapping_nex_to_cur.values()) != set(mapping_cur_to_pre.keys()) \
+                        or len(set(mapping_nex_to_cur.values())) != len(set(mapping_nex_to_cur.keys())) \
+                        or len(set(mapping_cur_to_pre.values())) != len(set(mapping_cur_to_pre.keys())):
+                    print('Match failed @pos {:d} @window {:d}.'.format(j, i))
+                    continue  # 不能组成链, 说明噪声点迹的影响导致匹配错误
+
+                # 输出正确的匹配结果
                 print(mapping_nex_to_cur)
                 print(mapping_cur_to_pre)
+                K = min(len(list(mapping_nex_to_cur.keys())), len(list(mapping_cur_to_pre.keys())))
 
                 # 建立K个暂时航迹
                 tracks = []
                 for k in range(K):
+                    # 初始化cycle编号记录
+                    start_cycle = -1
+
                     # 为每个暂时Track添加点迹
                     nex_idx = list(mapping_nex_to_cur.keys())[k]
                     cur_idx = mapping_nex_to_cur[nex_idx]
@@ -422,7 +434,13 @@ def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=
                             angle_in_degrees < angle_max:
                         n_pass += 1
 
-                    else:  # 记录航迹起始失败原因
+                        # 航迹初始化成功
+                        if n_pass >= m:
+                            start_cycle = i
+                            print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+                            continue
+
+                    else:  # 记录航迹起始失败原因: logging
                         is_v_pass = v >= v_min and v <= v_max
                         is_a_pass = a <= a_max
                         is_angle_pass = angle_in_degrees <= angle_max
@@ -443,14 +461,16 @@ def direct_method_with_bkg(track, cycle_time, v_min, v_max, a_max, angle_max, m=
             else:
                 continue
 
-        # 判定航迹是否起始成功
-        if n_pass >= m:
-            succeed = True
-        if succeed:
-            start_cycle = i
-            break
-        else:
-            continue  # 下一个滑窗
+        # # 判定航迹是否起始成功
+        # if n_pass >= m:
+        #     succeed = True
+        #
+        #     # 初始化(暂时)航迹
+        # if succeed:
+        #     start_cycle = i
+        #     break
+        # else:
+        #     continue  # 下一个滑窗
 
     return succeed, start_cycle, K
 
@@ -484,7 +504,7 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 2:  # 从第三个点迹开始求v, a, angle
+            if j >= 2 and j < len(window) - 1:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
                 plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
 
@@ -895,7 +915,7 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     if method == 0:  # 直观法
         succeed, start_cycle, K = direct_method_with_bkg(plots_per_cycle,
                                                          cycle_time,
-                                                         v_min=200, v_max=400,  # 2M
+                                                         v_min=250, v_max=400,  # 2M
                                                          a_max=15, angle_max=7,  # 军机7°/s
                                                          m=3, n=4)
     if succeed:
