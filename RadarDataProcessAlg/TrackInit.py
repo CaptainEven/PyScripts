@@ -302,7 +302,7 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
     return np.array(tracks)
 
 
-# ---------- Algorithm
+# ---------- Algorithms
 """
 航迹起始滑窗法的 m/n逻辑:
 如果这 N 次扫描中有某
@@ -322,6 +322,26 @@ def slide_window(track, n=4, start_cycle=1):
     return window
 
 
+def get_v(plots_2, cycle_time):
+    """
+    根据连续2个点迹计算后一个点迹的速度
+    :param plots_2:
+    :param cycle_time:
+    :return:
+    """
+    plot0, plot1 = plots_2
+    x0, y0 = plot0
+    x1, y1 = plot1
+
+    # 计算位移向量
+    shift_vector = np.array([x1, y1]) - np.array([x0, y0])
+
+    # 计算位移值
+    s = np.linalg.norm(shift_vector, ord=2)
+
+    return s / cycle_time
+
+
 def get_v_a_angle(plots_3, cycle_time):
     """
     通过连续3个点迹计算最后一个点迹的速度、加速度、航向偏转角
@@ -339,8 +359,6 @@ def get_v_a_angle(plots_3, cycle_time):
     s1 = np.array([x2, y2]) - np.array([x1, y1])
 
     # 计算位移数值
-    # dist0 = math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0))
-    # dist1 = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
     dist0 = np.linalg.norm(s0, ord=2)
     dist1 = np.linalg.norm(s1, ord=2)
 
@@ -360,6 +378,36 @@ def get_v_a_angle(plots_3, cycle_time):
     radian = math.acos(cos_sim)
 
     return v1, a, radian
+
+
+def matching_plots_nn(plots_0, plots_1, K):
+    """
+    :param plots_0:
+    :param plots_1:
+    :param K:
+    :return:
+    """
+    M, N = plots_0.shape[0], plots_1.shape[0]
+
+    mapping = {}
+    cost_mat = np.zeros((M, N), dtype=np.float32)
+    for i, plot_0 in enumerate(plots_0):
+        for j, plot_1 in enumerate(plots_1):
+            shift_vector = plot_0 - plot_1
+            l2_dist = np.linalg.norm(shift_vector, ord=2)
+            cost_mat[i][j] = l2_dist
+
+    # 取topK: cost最小
+    # k_smallest = heapq.nsmallest(K, cost_mat.ravel().tolist())
+    inds = np.argpartition(cost_mat.ravel(), K)[:K]
+    inds_i = inds // N
+    inds_j = inds % N
+    # k_smallest = cost_mat[inds_i, inds_j]
+
+    for i, j in zip(inds_i, inds_j):  # i∈range(M), j∈range(N)
+        mapping[i] = j
+
+    return mapping
 
 
 def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
@@ -573,6 +621,9 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
                 angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
                 angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
 
+                print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
+                      .format(i, v, a, angle_in_degrees))
+
                 # 门限判定
                 if v >= v_min and \
                         v <= v_max and \
@@ -630,8 +681,10 @@ def start_gate_check(cycle_time, plot_pre, plot_cur, v0, min_ratio=0.1, max_rati
     # 距离计算
     x_pre, y_pre = plot_pre
     x_cur, y_cur = plot_cur
-    dist = math.sqrt((x_cur - x_pre) * (x_cur - x_pre)
-                     + (y_cur - y_pre) * (y_cur - y_pre))
+    # dist = math.sqrt((x_cur - x_pre) * (x_cur - x_pre)
+    #                  + (y_cur - y_pre) * (y_cur - y_pre))
+    shift_vector = np.array([x_cur, y_cur]) - np.array([x_pre, y_pre])
+    dist = np.linalg.norm(shift_vector, ord=2)
 
     return dist >= r_min and dist <= r_max
 
@@ -766,6 +819,31 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
         return False, 2
 
 
+def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma=160, m=3, n=4):
+    """
+    :param plots_per_cycle:
+    :param cycle_time:
+    :param sigma:
+    :param m:
+    :param n:
+    :return:
+    """
+    N = plots_per_cycle.shape[0]  # number of cycles
+
+    tracks = []  # ret
+
+    # 取滑动窗口
+    succeed = False
+    for i in range(0, N - n):  # cycle i
+        if succeed:
+            break
+
+        # 取滑窗(连续6个cycle)
+        window = slide_window(plots_per_cycle, n, start_cycle=i)
+
+        #
+
+
 def logic_method(track, cycle_time, sigma=160, m=3, n=4):
     """
     逻辑法
@@ -797,12 +875,15 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                 # 估算当前点迹的运动状态
                 v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
 
-                # # 航向偏移角度估算
-                # angle_in_degrees = math.degrees(angle_in_radians)
-                # angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                # 航向偏移角度估算
+                angle_in_degrees = math.degrees(angle_in_radians)
+                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
+                print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
+                      .format(i, v, a, angle_in_degrees))
 
-                # ----- 判定逻辑...
-                if j >= 3 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
+                # ----- 判定逻辑
+                if j >= 2 and j < len(window) - 1:  # 从第3次扫描开始逻辑判定: j==2的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
                     if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
 
@@ -864,11 +945,12 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
                 # 航向偏移角度估算
                 angle_in_degrees = math.degrees(angle_in_radians)
                 angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
                 print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
                       .format(i, v, a, angle_in_degrees))
 
                 # ----- 判定逻辑
-                if j >= 3 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
+                if j >= 2 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
                     if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
 
@@ -884,8 +966,7 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
                                 print('Track init failed @cycle{:d}, corrected relating gate: out of shift sigma.'
                                       .format(i))
                             elif ret == 1:
-                                print(
-                                    'Track init failed @cycle{:d}, corrected relating gate: out of heading angle sigma.'
+                                print('Track init failed @cycle{:d}, corrected relating gate: out of angle sigma.'
                                         .format(i))
                     else:
                         print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
@@ -906,40 +987,10 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
     return succeed, start_cycle
 
 
-def matching_plots_nn(plots_0, plots_1, K):
-    """
-    :param plots_0:
-    :param plots_1:
-    :param K:
-    :return:
-    """
-    M, N = plots_0.shape[0], plots_1.shape[0]
-
-    mapping = {}
-    cost_mat = np.zeros((M, N), dtype=np.float32)
-    for i, plot_0 in enumerate(plots_0):
-        for j, plot_1 in enumerate(plots_1):
-            shift_vector = plot_0 - plot_1
-            l2_dist = np.linalg.norm(shift_vector, ord=2)
-            cost_mat[i][j] = l2_dist
-
-    # 取topK: cost最小
-    # k_smallest = heapq.nsmallest(K, cost_mat.ravel().tolist())
-    inds = np.argpartition(cost_mat.ravel(), K)[:K]
-    inds_i = inds // N
-    inds_j = inds % N
-    # k_smallest = cost_mat[inds_i, inds_j]
-
-    for i, j in zip(inds_i, inds_j):  # i∈range(M), j∈range(N)
-        mapping[i] = j
-
-    return mapping
-
-
 def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     """
     :param plots_f_path:
-    :param cycle_time:
+    :param cycle_time: s
     :param method:
     :return:
     """
@@ -971,6 +1022,16 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
         M = len(tracks)
         print('{:d} tracks initialization succeeded.'.format(M))
 
+        # ---------- 可视化成功起始的航迹
+        for track in tracks:
+            # print(track)
+            cycles = [plot.cycle_ for plot in track.plots_]
+            xs = [plot.x_ for plot in track.plots_]
+            ys = [plot.y_ for plot in track.plots_]
+
+            plots = [[x, y] for x, y in zip(xs, ys)]
+            plot_plots(plots, cycles)
+
         # ---------- TODO: 后续点航相关过程
         pass
 
@@ -998,6 +1059,7 @@ def test_track_init_methods(track_f_path, cycle_time, method):
         print('[Err]: invalid tracks file format.')
         return
 
+    # 遍历每一个track: 进行航迹起始判定
     for i, track in enumerate(tracks):
         if method == 0:  # 直观法
             succeed, start_cycle = direct_method(track,
@@ -1373,12 +1435,13 @@ def plot_tracks(track_f_path):
 if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
     # plot_tracks('./tracks_2_1s.npy')
-    # test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=2)
+
+    test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=2)
 
     # plot_plots_in_each_cycle('./RadarDataProcessAlg/plots_in_each_cycle_1s.npy')
-    test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
-                                     cycle_time=1,
-                                     method=0)
+    # test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
+    #                                  cycle_time=1,
+    #                                  method=0)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
