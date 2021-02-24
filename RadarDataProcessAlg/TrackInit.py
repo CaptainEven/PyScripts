@@ -65,18 +65,19 @@ class Plot(object):
         :param a: 点迹加速度(m/s²)
         :param heading: °
         """
-        self.cycle_ = 0
+        self.cycle_ = cycle
         self.x_ = x
         self.y_ = y
-        self.v_ = 0.0
-        self.a_ = 0.0
-        self.heading_ = 0.0
+        self.v_ = v
+        self.a_ = a
+        self.heading_ = heading
 
 
 class Track(object):
     def __init__(self):
         self.state_ = 0  # 航迹状态
         self.plots_ = []
+        self.init_cycle = -1
 
     def add_plot(self, plot):
         self.plots_.append(plot)
@@ -375,9 +376,14 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
     """
     N = plots_per_cycle.shape[0]  # number of cycles
 
+    tracks = []  # ret
+
     # 取滑动窗口
     succeed = False
     for i in range(0, N - n):  # cycle i
+        if succeed:
+            break
+
         # 取滑窗(连续6个cycle)
         window = slide_window(plots_per_cycle, n, start_cycle=i)
 
@@ -386,8 +392,9 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
         K = min([cycle_plots.shape[0] for cycle_plots in window])  # 最小公共点迹数
         mappings = defaultdict(dict)
         for j in range(len(window) - 1, 0, -1):
-            # 构建相邻cycle的mapping
+            # ----- 构建相邻cycle的mapping
             mapping = matching_plots_nn(window[j], window[j - 1], K)
+            # -----
 
             if len(set(mapping.values())) != len(set(mapping.keys())):
                 break
@@ -449,7 +456,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                 cycle_id = cycle_ids[l]
 
                 # 构建连续三个cycle的plots
-                plots_3 = [plots[l], plots[l + 1], plots[l + 2]]
+                plots_3 = [plots[l+2], plots[l + 1], plots[l]]
                 # plot_plots(plots_3)
 
                 # 估算当前点迹的运动状态(速度, 加速度, 偏航角度)
@@ -469,16 +476,13 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                     # window运动状态记录
                     state_dict = {
                         'cycle': cycle_id,
+                        'x': plots[l][0],
+                        'y': plots[l][1],
                         'v': v,
                         'a': a,
                         'angle_in_degrees': angle_in_degrees
                     }
                     window_states[cycle_id] = state_dict
-
-                    # 判定是否当前航迹初始化成功
-                    if n_pass >= m:
-                        print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
-
 
                 else:  # 记录航迹起始失败原因: logging
                     is_v_pass = v >= v_min and v <= v_max
@@ -497,6 +501,30 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                     if not is_angle_pass:
                         print('Track {:d} init failed @cycle{:d}, heading angle threshold: {:.3f} > {:.3f}°'
                               .format(k, i, angle_in_degrees, angle_max))
+
+            # 判定是否当前航迹初始化成功
+            if n_pass >= m:
+                print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+
+                # TODO: 初始化航迹对象
+                track = Track()
+                track.state_ = 2       # 航迹状态: 可靠航迹
+                track.init_cycle = i   # 航迹起始cycle
+                window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
+                for k, v in window_states:
+                    print(k, v)
+                    plot = Plot(v['cycle'], v['x'], v['y'], v['v'], v['a'], v['angle_in_degrees'])
+                    track.add_plot(plot)
+                tracks.append(track)
+
+                # 航迹起始成功标识
+                succeed = True
+
+                # 清空窗口状态
+                window_states = defaultdict(dict)
+
+                # 跳出当前航迹检测, 到下一个暂时航迹
+                continue
         # ----------
 
         # 重置n_pass
@@ -506,7 +534,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
         window_cycle_ids = []
         window_states = np.zeros((len(window), 3), dtype=np.float32)
 
-    return succeed
+    return succeed, tracks
 
 
 # Page 57
@@ -947,14 +975,13 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     #     mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre)
 
     if method == 0:  # 直观法
-        succeed, start_cycle, K = direct_method_with_bkg(plots_per_cycle,
-                                                         cycle_time,
-                                                         v_min=100, v_max=450,  # 2M
-                                                         a_max=50, angle_max=15,  # 军机7°/s
-                                                         m=3, n=4)
+        succeed = direct_method_with_bkg(plots_per_cycle,
+                                         cycle_time,
+                                         v_min=100, v_max=450,  # 2M
+                                         a_max=50, angle_max=15,  # 军机7°/s
+                                         m=3, n=4)
     if succeed:
-        print('{:d} tracks initialization succeeded @cycle {:d}.'
-              .format(K, start_cycle))
+        print('Tracks initialization succeeded.')
 
         # ----- 初始化航迹
         # 后续点航相关过程...
