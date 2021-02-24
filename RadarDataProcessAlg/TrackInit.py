@@ -605,12 +605,12 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     succeed = False
     for i in range(2, N - n):
         # 取滑窗
-        window = slide_window(track, n, i)
+        window = slide_window(track, n, start_cycle=i, skip_cycle=2)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 2 and j < len(window) - 1:  # 从第三个点迹开始求v, a, angle
+            if j >= 2 and j < len(window):  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
                 plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
 
@@ -1460,7 +1460,7 @@ if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
     # plot_tracks('./tracks_2_1s.npy')
 
-    test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=1)
+    test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=0)
 
     # plot_plots_in_each_cycle('./RadarDataProcessAlg/plots_in_each_cycle_1s.npy')
     # test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
