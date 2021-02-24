@@ -456,7 +456,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                 cycle_id = cycle_ids[l]
 
                 # 构建连续三个cycle的plots
-                plots_3 = [plots[l+2], plots[l + 1], plots[l]]
+                plots_3 = [plots[l + 2], plots[l + 1], plots[l]]
                 # plot_plots(plots_3)
 
                 # 估算当前点迹的运动状态(速度, 加速度, 偏航角度)
@@ -508,8 +508,8 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
                 # TODO: 初始化航迹对象
                 track = Track()
-                track.state_ = 2       # 航迹状态: 可靠航迹
-                track.init_cycle = i   # 航迹起始cycle
+                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.init_cycle = i  # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
                 for k, v in window_states:
                     print(k, v)
@@ -527,13 +527,8 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                 continue
         # ----------
 
-        # 重置n_pass
-        n_pass = 0
-
-        # 重置窗口状态记录
-        window_cycle_ids = []
-        window_states = np.zeros((len(window), 3), dtype=np.float32)
-
+    # if tracks != []:
+    #     print(tracks)
     return succeed, tracks
 
 
@@ -963,25 +958,18 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     N = plots_per_cycle.shape[0]
     print('Total {:d} radar cycles.'.format(N))
 
-    # for i in range(N):  # 处理每一个cycle
-    # if i >= 1:  # 从第三个扫描周期开始
-    #     plots_pre = plots_per_cycle[i - 1]
-    #     plots_cur = plots_per_cycle[i]
-    #     plots_nex = plots_per_cycle[i + 1]
-    #
-    #     # 当前扫描与前次扫面的点迹进行NN匹配: 局部贪心匹配, 计算代价矩阵
-    #     # TODO: 进行匈牙利匹配
-    #     mapping_nex_to_cur = matching_plots_nn(plots_nex, plots_cur)
-    #     mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre)
+    # 当前扫描与前次扫面的点迹进行NN匹配: 局部贪心匹配, 计算代价矩阵
+    # TODO: 进行匈牙利匹配
 
     if method == 0:  # 直观法
-        succeed = direct_method_with_bkg(plots_per_cycle,
-                                         cycle_time,
-                                         v_min=100, v_max=450,  # 2M
-                                         a_max=50, angle_max=15,  # 军机7°/s
-                                         m=3, n=4)
+        succeed, tracks = direct_method_with_bkg(plots_per_cycle,
+                                                 cycle_time,
+                                                 v_min=150, v_max=500,  # < 2M
+                                                 a_max=50, angle_max=10,  # 军机7°/s
+                                                 m=3, n=4)
     if succeed:
-        print('Tracks initialization succeeded.')
+        M = len(tracks)
+        print('{:d} tracks initialization succeeded.'.format(M))
 
         # ----- 初始化航迹
         # 后续点航相关过程...
