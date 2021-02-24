@@ -310,14 +310,15 @@ M 个观测值满足以下条件，那么启发式规则法就认定应起始一
 """
 
 
-def slide_window(track, n=4, start_cycle=1):
+def slide_window(track, n=4, start_cycle=1, skip_cycle=2):
     """
     :param track:
     :param n:
     :param start_cycle:
+    :param skip_cycle:
     :return:
     """
-    window = [track[i] for i in range(start_cycle - 2, start_cycle + n)]
+    window = [track[i] for i in range(start_cycle - skip_cycle, start_cycle + n)]
 
     return window
 
@@ -832,14 +833,27 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma=160, m=3, n=4):
 
     # 取滑动窗口
     succeed = False
-    for i in range(0, N - n):  # cycle i
+    for i in range(1, N - n):  # cycle i
         if succeed:
             break
 
         # 取滑窗(连续6个cycle)
-        window = slide_window(plots_per_cycle, n, start_cycle=i)
+        window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=1)
 
-        #
+        for j in range(1, len(window) - 1):
+            # ----- 构建连续3个相邻cycle的plots匹配(排除噪声, 相当于点迹预处理过程)
+            mapping_pre_to_cur = matching_plots_nn(window[j-1], window[j])
+            mapping_cur_to_nex = matching_plots_nn(window[j], window[j+1])
+            # -----
+
+            # 判断是否mapping正确
+            if len(set(mapping_pre_to_cur.keys())) != len(set(mapping_pre_to_cur.values())) \
+                or len(set(mapping_cur_to_nex.keys())) != len(set(mapping_cur_to_nex.values())):
+                continue  # 窗口内滑动
+
+
+
+            pass
 
 
 def logic_method(track, cycle_time, sigma=160, m=3, n=4):
@@ -861,7 +875,7 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
     succeed = False
     for i in range(1, N - n):
         # 取滑窗
-        window = slide_window(track, n, i)
+        window = slide_window(track, n, start_cycle=i, skip_cycle=1)
 
         # 判定
         n_pass = 0
@@ -886,11 +900,11 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                 # ----- 判定逻辑
                 if j >= 1 and j < len(window) - 1:  # 从第3次扫描开始逻辑判定: j==2的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
-                    if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
+                    if start_gate_check(cycle_time, window[j-1], window[j], v0=340):
 
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # page71-72
-                        if relate_gate_check(cycle_time, v, window[j - 1], window[j], window[j + 1], sigma=sigma):
+                        if relate_gate_check(cycle_time, v, window[j-1], window[j], window[j+1], sigma=sigma):
                             n_pass += 1
                         else:
                             print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
@@ -931,7 +945,7 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
     succeed = False
     for i in range(1, N - n):
         # 取滑窗
-        window = slide_window(track, n, i)
+        window = slide_window(track, n, start_cycle=i, skip_cycle=1)
 
         # 判定
         n_pass = 0
@@ -1022,6 +1036,12 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
                                                  v_min=150, v_max=500,  # < 2M
                                                  a_max=50, angle_max=10,  # 军机7°/s
                                                  m=3, n=4)
+    elif method == 1:  # 逻辑法
+        logic_method_with_bkg(plots_per_cycle,
+                              cycle_time,
+                              sigma=160,
+                              m=3, n=4)
+
     if succeed:
         M = len(tracks)
         print('{:d} tracks initialization succeeded.'.format(M))
@@ -1440,12 +1460,12 @@ if __name__ == '__main__':
     # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
     # plot_tracks('./tracks_2_1s.npy')
 
-    test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=2)
+    test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=1)
 
     # plot_plots_in_each_cycle('./RadarDataProcessAlg/plots_in_each_cycle_1s.npy')
     # test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
     #                                  cycle_time=1,
-    #                                  method=0)
+    #                                  method=1)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
