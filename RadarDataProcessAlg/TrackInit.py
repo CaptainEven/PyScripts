@@ -636,7 +636,7 @@ def start_gate_check(cycle_time, plot_pre, plot_cur, v0, min_ratio=0.1, max_rati
     return dist >= r_min and dist <= r_max
 
 
-def extrapolat_plot(plot_pre, plot_cur, s):
+def extrapolate_plot(plot_pre, plot_cur, s):
     """
     :param plot_pre: 前一个点迹
     :param plot_cur: 当前点迹
@@ -709,7 +709,7 @@ def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
     s = v * cycle_time
 
     # 计算(直线)外推点
-    x_extra, y_extra = extrapolat_plot(plot_pre, plot_cur, s)
+    x_extra, y_extra = extrapolate_plot(plot_pre, plot_cur, s)
 
     # 计算实际点迹与外推点迹之间的距离
     dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
@@ -738,7 +738,7 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
     s = v * cycle_time
 
     # 计算(直线)外推点
-    x_extra, y_extra = extrapolat_plot(plot_pre, plot_cur, s)
+    x_extra, y_extra = extrapolate_plot(plot_pre, plot_cur, s)
 
     # 计算实际点迹与外推点迹之间的距离
     dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
@@ -971,8 +971,9 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
         M = len(tracks)
         print('{:d} tracks initialization succeeded.'.format(M))
 
-        # ----- 初始化航迹
-        # 后续点航相关过程...
+        # ---------- TODO: 后续点航相关过程
+        pass
+
     else:
         print('Track initialization failed.')
 
