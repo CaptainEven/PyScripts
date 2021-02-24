@@ -333,9 +333,15 @@ def get_v_a_angle(plots_3, cycle_time):
     x1, y1 = plot1
     x2, y2 = plot2
 
+    # 计算位移向量
+    s0 = np.array([x1, y1]) - np.array([x0, y0])
+    s1 = np.array([x2, y2]) - np.array([x1, y1])
+
     # 计算位移数值
-    dist0 = math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0))
-    dist1 = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
+    # dist0 = math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0))
+    # dist1 = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1))
+    dist0 = np.linalg.norm(s0, ord=2)
+    dist1 = np.linalg.norm(s1, ord=2)
 
     # 计算速度
     v0 = dist0 / cycle_time
@@ -345,12 +351,12 @@ def get_v_a_angle(plots_3, cycle_time):
     a = (v1 - v0) / cycle_time
 
     # ----- 计算航向偏转角
-    # 计算位移向量
-    s0 = np.array([x1, y1]) - np.array([x0, y0])
-    s1 = np.array([x2, y2]) - np.array([x1, y1])
-
     # 计算角度(夹角余弦): 返回反余弦弧度值
-    radian = math.acos(np.dot(s0, s1) / (dist0 * dist1))
+    dot_val = np.dot(s0, s1)
+    cos_sim = dot_val / (dist0 * dist1)
+    cos_sim = cos_sim if cos_sim <= 1.0 else 1.0
+    cos_sim = cos_sim if cos_sim >= -1.0 else -1.0
+    radian = math.acos(cos_sim)
 
     return v1, a, radian
 
@@ -371,116 +377,136 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
     # 取滑动窗口
     succeed = False
-    for i in range(2, N - n):  # cycle i
-        # 取滑窗
+    for i in range(0, N - n):  # cycle i
+        # 取滑窗(连续6个cycle)
         window = slide_window(plots_per_cycle, n, start_cycle=i)
 
-        # 窗口检出数计数
-        n_pass = 0
-        for j, plot in enumerate(window):
-            if j >= 2 and j < len(window) - 1:  # 从第三个点迹开始求v, a, angle
-                # 获取连续3个点迹
-                plots_3_cycles = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
+        # ----------对窗口中进行m/n统计
+        # 构建mapping链
+        K = min([cycle_plots.shape[0] for cycle_plots in window])  # 最小公共点迹数
+        mappings = defaultdict(dict)
+        for j in range(len(window) - 1, 0, -1):
+            # 构建相邻cycle的mapping
+            mapping = matching_plots_nn(window[j], window[j - 1], K)
 
-                # 获取连续3个cycle点迹的映射(idx mapping)关系
-                plots_pre = plots_3_cycles[0]
-                plots_cur = plots_3_cycles[1]
-                plots_nex = plots_3_cycles[2]
-                K = min(plots_pre.shape[0], plots_cur.shape[0], plots_nex.shape[0])
-
-                mapping_nex_to_cur = matching_plots_nn(plots_nex, plots_cur, K)
-                mapping_cur_to_pre = matching_plots_nn(plots_cur, plots_pre, K)
-
-                # 映射链式判断: 连续3个cycle的点迹能否组成一个链
-                if set(mapping_nex_to_cur.values()) != set(mapping_cur_to_pre.keys()) \
-                        or len(set(mapping_nex_to_cur.values())) != len(set(mapping_nex_to_cur.keys())) \
-                        or len(set(mapping_cur_to_pre.values())) != len(set(mapping_cur_to_pre.keys())):
-                    print('Match failed @pos {:d} @window {:d}.'.format(j, i))
-                    continue  # 不能组成链, 说明噪声点迹的影响导致匹配错误
-
-                # 输出正确的匹配结果
-                print(mapping_nex_to_cur)
-                print(mapping_cur_to_pre)
-
-                # 更新正确的暂时航迹数
-                K = min(len(list(mapping_nex_to_cur.keys())), len(list(mapping_cur_to_pre.keys())))
-
-                # 建立K个暂时航迹
-                tracks = []
-                for k in range(K):
-                    # 初始化cycle编号记录
-                    start_cycle = -1
-
-                    # 为每个暂时Track添加点迹
-                    nex_idx = list(mapping_nex_to_cur.keys())[k]
-                    cur_idx = mapping_nex_to_cur[nex_idx]
-                    pre_idx = mapping_cur_to_pre[cur_idx]
-
-                    # 取组成当前暂时航迹的点迹
-                    plot_locs = [plots_pre[pre_idx], plots_cur[cur_idx], plots_nex[nex_idx]]
-                    # print(plot_locs)
-
-                    # 估算当前点迹的运动状态
-                    v, a, angle_in_radians = get_v_a_angle(plot_locs, cycle_time)
-
-                    # 航向偏移角度估算
-                    angle_in_degrees = math.degrees(angle_in_radians)
-                    angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
-                    angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
-                    # print(v, a, angle_in_degrees)
-
-                    # 门限判定
-                    if v >= v_min and \
-                            v <= v_max and \
-                            a <= a_max and \
-                            angle_in_degrees < angle_max:
-                        n_pass += 1
-
-                        # 航迹初始化成功
-                        if n_pass >= m:
-                            start_cycle = i
-                            print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
-
-                            # 初始化稳定的航迹对象(航迹初始化成功)
-
-                            # 重置n_pass
-                            n_pass = 0
-
-                            continue  # 判断下一个航迹
-
-                    else:  # 记录航迹起始失败原因: logging
-                        is_v_pass = v >= v_min and v <= v_max
-                        is_a_pass = a <= a_max
-                        is_angle_pass = angle_in_degrees <= angle_max
-
-                        if not is_v_pass:
-                            if v < v_min:
-                                print('Track{:d} init failed @cycle{:d}, velocity threshold: {:.3f} < {:.3f}m/s'
-                                      .format(k, i, float(v), v_min))
-                            elif v > v_max:
-                                print('Track{:d} init failed @cycle{:d}, velocity threshold: {:.3f} > {:.3f}m/s'
-                                      .format(k, i, float(v), v_max))
-                        if not is_a_pass:
-                            print('Track{:d} init failed @cycle{:d}, acceleration threshold: {:.3f} > {:.3f}m/s²'
-                                  .format(k, i, a, float(a_max)))
-                        if not is_angle_pass:
-                            print('Track{:d} init failed @cycle{:d}, heading angle threshold: {:.3f} > {:.3f}°'
-                                  .format(k, i, angle_in_degrees, angle_max))
+            if len(set(mapping.values())) != len(set(mapping.keys())):
+                break
             else:
-                continue
+                mappings[j] = mapping
 
-        # # 判定航迹是否起始成功
-        # if n_pass >= m:
-        #     succeed = True
-        #
-        #     # 初始化(暂时)航迹
-        # if succeed:
-        #     start_cycle = i
-        #     break
-        # else:
-        #     continue  # 下一个滑窗
+        if len(mappings) < m + 2:  # 至少有m个cycle有效数据
+            continue  # 滑动到下一个window
 
-    return succeed, start_cycle, K
+        # 对mapping结果进行排序(按照key降序排列)
+        mappings = sorted(mappings.items(), key=lambda x: x[0], reverse=True)
+        # print(mappings)
+
+        # 构建暂时航迹
+        for k in range(K):  # 遍历每个暂时航迹
+            # ----- 航迹状态记录
+            # 窗口检出数计数: 每个暂时航迹单独计数
+            n_pass = 0
+
+            # 窗口运动状态记录: 每个航迹单独记录(速度, 加速度, 航向偏转角)
+            window_states = defaultdict(dict)
+            # -----
+
+            # 构建暂时航迹组成的点迹(plot)
+            plot_ids = []
+            id = -1
+
+            # 提取倒序第一个有效cycle的plot id
+            keys = mappings[0][1].keys()
+            keys = sorted(keys, reverse=False)  # 按照当前window最大的有效cycle的点迹序号升序排列
+            id = keys[k]
+            plot_ids.append(id)
+
+            # 按照mapping链递推其余cycle的plot id
+            for (c, mapping) in mappings:  # mapping已经按照cycle倒序排列过了
+                id = mapping[id]  # 倒推映射链plot id
+                plot_ids.append(id)
+
+            # print(ids)  # ids是按照cycle倒排的
+            # 根据ids链接构建plot链: 暂时航迹
+            cycle_ids = [c for (c, mapping) in mappings]  # 按照cycle编号倒排
+            cycle_ids.extend([mappings[-1][0] - 1])
+
+            assert len(cycle_ids) == len(plot_ids)
+
+            plots = [window[cycle][plot_id] for cycle, plot_id in zip(cycle_ids, plot_ids)]
+
+            # 可视化验证
+            # plot_plots(plots, cycle_ids)
+
+            # print(plots)
+            plots_to_test = plots[:-2]
+            cycle_ids_to_test = cycle_ids[:-2]
+            # plot_plots(plots_to_test, cycle_ids_to_test)
+
+            # window内逐一门限测试
+            # for l, (cycle_id, plot) in enumerate(zip(cycle_ids_to_test, plots_to_test)):
+            for l in range(len(plots) - 2):
+                cycle_id = cycle_ids[l]
+
+                # 构建连续三个cycle的plots
+                plots_3 = [plots[l], plots[l + 1], plots[l + 2]]
+                # plot_plots(plots_3)
+
+                # 估算当前点迹的运动状态(速度, 加速度, 偏航角度)
+                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                angle_in_degrees = math.degrees(angle_in_radians)
+                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
+
+                # 门限判定
+                if v >= v_min and \
+                        v <= v_max and \
+                        a <= a_max and \
+                        angle_in_degrees < angle_max:
+                    # 更新n_pass
+                    n_pass += 1
+
+                    # window运动状态记录
+                    state_dict = {
+                        'cycle': cycle_id,
+                        'v': v,
+                        'a': a,
+                        'angle_in_degrees': angle_in_degrees
+                    }
+                    window_states[cycle_id] = state_dict
+
+                    # 判定是否当前航迹初始化成功
+                    if n_pass >= m:
+                        print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+
+
+                else:  # 记录航迹起始失败原因: logging
+                    is_v_pass = v >= v_min and v <= v_max
+                    is_a_pass = a <= a_max
+                    is_angle_pass = angle_in_degrees <= angle_max
+                    if not is_v_pass:
+                        if v < v_min:
+                            print('Track {:d} init failed @cycle{:d}, velocity threshold: {:.3f} < {:.3f}m/s'
+                                  .format(k, i, float(v), v_min))
+                        elif v > v_max:
+                            print('Track {:d} init failed @cycle{:d}, velocity threshold: {:.3f} > {:.3f}m/s'
+                                  .format(k, i, float(v), v_max))
+                    if not is_a_pass:
+                        print('Track {:d} init failed @cycle{:d}, acceleration threshold: {:.3f} > {:.3f}m/s²'
+                              .format(k, i, a, float(a_max)))
+                    if not is_angle_pass:
+                        print('Track {:d} init failed @cycle{:d}, heading angle threshold: {:.3f} > {:.3f}°'
+                              .format(k, i, angle_in_degrees, angle_max))
+        # ----------
+
+        # 重置n_pass
+        n_pass = 0
+
+        # 重置窗口状态记录
+        window_cycle_ids = []
+        window_states = np.zeros((len(window), 3), dtype=np.float32)
+
+    return succeed
 
 
 # Page 57
@@ -881,7 +907,7 @@ def matching_plots_nn(plots_0, plots_1, K):
     inds_j = inds % N
     # k_smallest = cost_mat[inds_i, inds_j]
 
-    for i, j in zip(inds_i, inds_j):
+    for i, j in zip(inds_i, inds_j):  # i∈range(M), j∈range(N)
         mapping[i] = j
 
     return mapping
@@ -923,8 +949,8 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     if method == 0:  # 直观法
         succeed, start_cycle, K = direct_method_with_bkg(plots_per_cycle,
                                                          cycle_time,
-                                                         v_min=250, v_max=400,  # 2M
-                                                         a_max=15, angle_max=7,  # 军机7°/s
+                                                         v_min=100, v_max=450,  # 2M
+                                                         a_max=50, angle_max=15,  # 军机7°/s
                                                          m=3, n=4)
     if succeed:
         print('{:d} tracks initialization succeeded @cycle {:d}.'
@@ -1095,6 +1121,62 @@ def plot_polar_cartesian_map(track):
     plt.show()
 
 
+def plot_plots(plots, cycles=[]):
+    """
+    :param plots:
+    :return:
+    """
+    plots = np.array(plots)
+    if plots.shape[0] == 0:
+        print('[Err]: empty plots.')
+        return
+
+    # 绘制基础地图(极坐标系)
+    fig = plt.figure(figsize=[16, 8])
+    fig.suptitle('Radar')
+
+    ax0 = plt.subplot(121, projection="polar")
+    ax0.set_theta_zero_location('E')
+    ax0.set_theta_direction(1)  # anti-clockwise
+    ax0.set_rmin(10)
+    ax0.set_rmax(100000)
+    ax0.set_rticks(np.arange(-50000, 50000, 3000))
+    ax0.set_title('polar')
+
+    ax1 = plt.subplot(122)
+    ax1.set_xticks(np.arange(-50000, 50000, 10000))
+    ax1.set_yticks(np.arange(-50000, 50000, 10000))
+    ax1.set_title('cartesian')
+
+    x = plots[:, 0]
+    y = plots[:, 1]
+
+    # 计算极径
+    r = np.sqrt(x * x + y * y)
+
+    # 计算极角
+    theta = np.arctan2(y, x)
+    neg_inds = np.where(theta < 0.0)
+    theta[neg_inds] += np.pi * 2.0
+
+    # 绘制极坐标点迹
+    color, marker = sample(colors, 1)[0], sample(markers, 1)[0]
+    ax0.scatter(theta, r, c=color, marker=marker)
+    for j in range(theta.shape[0]):
+        if cycles == []:
+            ax0.text(theta[j], r[j], str(j))
+        else:
+            ax0.text(theta[j], r[j], str(cycles[j]))
+    ax1.scatter(x, y, c=color, marker=marker)
+    for j in range(x.shape[0]):
+        if cycles == []:
+            ax1.text(x[j], y[j], str(j))
+        else:
+            ax1.text(x[j], y[j], str(cycles[j]))
+
+    plt.show()
+
+
 def plot_plots_in_each_cycle(plots_f_path):
     """
     可视化含有杂波背景的点迹数据
@@ -1119,7 +1201,7 @@ def plot_plots_in_each_cycle(plots_f_path):
 
     ax0 = plt.subplot(121, projection="polar")
     ax0.set_theta_zero_location('E')
-    ax0.set_theta_direction(-1)  # anti-clockwise
+    ax0.set_theta_direction(1)  # anti-clockwise
     ax0.set_rmin(10)
     ax0.set_rmax(100000)
     ax0.set_rticks(np.arange(-50000, 50000, 3000))
