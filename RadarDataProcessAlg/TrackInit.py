@@ -681,8 +681,6 @@ def start_gate_check(cycle_time, plot_pre, plot_cur, v0, min_ratio=0.1, max_rati
     # 距离计算
     x_pre, y_pre = plot_pre
     x_cur, y_cur = plot_cur
-    # dist = math.sqrt((x_cur - x_pre) * (x_cur - x_pre)
-    #                  + (y_cur - y_pre) * (y_cur - y_pre))
     shift_vector = np.array([x_cur, y_cur]) - np.array([x_pre, y_pre])
     dist = np.linalg.norm(shift_vector, ord=2)
 
@@ -861,29 +859,32 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
 
     # 窗口滑动
     succeed = False
-    for i in range(2, N - n - 1):
+    for i in range(1, N - n):
         # 取滑窗
-        window = slide_window(track, n + 1, i)
+        window = slide_window(track, n, i)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 2:  # 从第三个点迹开始求v, a, angle
+            if j >= 1:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
-                plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
+                # plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+                plots_2 = window[j-1: j+1]  # 2 plots:[j-1, j]
 
                 # 估算当前点迹的运动状态
-                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                # v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                v = get_v(plots_2, cycle_time)
 
-                # 航向偏移角度估算
-                angle_in_degrees = math.degrees(angle_in_radians)
-                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
-                angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
-                print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
-                      .format(i, v, a, angle_in_degrees))
+                # # 航向偏移角度估算
+                # angle_in_degrees = math.degrees(angle_in_radians)
+                # angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                # angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
+
+                # print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
+                #       .format(i, v, a, angle_in_degrees))
 
                 # ----- 判定逻辑
-                if j >= 2 and j < len(window) - 1:  # 从第3次扫描开始逻辑判定: j==2的点迹作为航迹头
+                if j >= 1 and j < len(window) - 1:  # 从第3次扫描开始逻辑判定: j==2的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
                     if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
 
@@ -894,8 +895,8 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                         else:
                             print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
                     else:
-                        print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
-                              .format(i))
+                        print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
+                              .format(i, j))
             else:
                 continue
 
@@ -928,49 +929,52 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
 
     # 窗口滑动
     succeed = False
-    for i in range(2, N - n - 1):
+    for i in range(1, N - n):
         # 取滑窗
-        window = slide_window(track, n + 1, i)
+        window = slide_window(track, n, i)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 2:  # 从第三个点迹开始求v, a, angle
+            if j >= 1:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
-                plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
+                # plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
+                plots_2 = window[j-1: j+1]  # 2 plots: [j-1, j]
 
-                # 估算当前点迹的运动状态
-                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                # # 估算当前点迹的运动状态
+                # v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                v = get_v(plots_2, cycle_time)
 
-                # 航向偏移角度估算
-                angle_in_degrees = math.degrees(angle_in_radians)
-                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
-                angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
-                print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
-                      .format(i, v, a, angle_in_degrees))
+                # # 航向偏移角度估算
+                # angle_in_degrees = math.degrees(angle_in_radians)
+                # angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                # angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
+
+                # print('Cycle{:d} | velocity: {:.3f}m/s | acceleration: {:.3f}m/s² | heading angle: {:.3f}°'
+                #       .format(i, v, a, angle_in_degrees))
 
                 # ----- 判定逻辑
-                if j >= 2 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
+                if j >= 1 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
-                    if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
+                    if start_gate_check(cycle_time, window[j-1], window[j], v0=340):
 
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # page71-72
                         is_pass, ret = corrected_relate_gate_check(cycle_time, v,
-                                                                   window[j - 1], window[j], window[j + 1],
+                                                                   window[j-1], window[j], window[j+1],
                                                                    s_sigma, a_sigma)
                         if is_pass:
                             n_pass += 1
                         else:
                             if ret == 2:
-                                print('Track init failed @cycle{:d}, corrected relating gate: out of shift sigma.'
-                                      .format(i))
+                                print('Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of shift sigma.'
+                                      .format(i, j))
                             elif ret == 1:
-                                print('Track init failed @cycle{:d}, corrected relating gate: out of angle sigma.'
-                                        .format(i))
+                                print('Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of angle sigma.'
+                                        .format(i, j))
                     else:
-                        print('Track init failed @cycle{:d}, object(plot) is not in the starting gate.'
-                              .format(i))
+                        print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
+                              .format(i, j))
             else:
                 continue
 
