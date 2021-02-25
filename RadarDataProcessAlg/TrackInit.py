@@ -1126,7 +1126,6 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time, s_sigma=160, a_
             # print(plots)
 
             # window内逐一门限测试
-            # for l, (cycle_id, plot) in enumerate(zip(cycle_ids_to_test, plots_to_test)):
             for l in range(len(plots) - 2):
                 cycle_id = cycle_ids[l]
 
@@ -1329,7 +1328,7 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     elif method == 2:  # 修正逻辑法
         succeed, tracks = corrected_logic_method_with_bkg(plots_per_cycle,
                                                           cycle_time,
-                                                          s_sigma=160, a_sigma=10,
+                                                          s_sigma=160, a_sigma=8,
                                                           m=3, n=4)
 
     if succeed:
@@ -1347,7 +1346,7 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
             plot_plots(plots, cycles)
 
         # ---------- TODO: 后续点航相关过程
-
+        
         pass
 
     else:
