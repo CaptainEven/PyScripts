@@ -434,7 +434,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
             break
 
         # 取滑窗(连续6个cycle)
-        window = slide_window(plots_per_cycle, n, start_cycle=i)
+        window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=2)
 
         # ----------对窗口中进行m/n统计
         # 构建mapping链
@@ -450,7 +450,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
             else:
                 mappings[j] = mapping
 
-        if len(mappings) < m + 2:  # 至少有m个cycle有效数据
+        if len(mappings) < m + 1:  # 至少有m个cycle有效数据
             continue  # 滑动到下一个window
 
         # 对mapping结果进行排序(按照key降序排列)
@@ -471,7 +471,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
             plot_ids = []
             id = -1
 
-            # 提取倒序第一个有效cycle的plot id
+            # 提取倒序第一个有效cycle的第k个plot id
             keys = mappings[0][1].keys()
             keys = sorted(keys, reverse=False)  # 按照当前window最大的有效cycle的点迹序号升序排列
             id = keys[k]
@@ -495,8 +495,8 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
             # plot_plots(plots, cycle_ids)
 
             # print(plots)
-            plots_to_test = plots[:-2]
-            cycle_ids_to_test = cycle_ids[:-2]
+            # plots_to_test = plots[:-2]
+            # cycle_ids_to_test = cycle_ids[:-2]
             # plot_plots(plots_to_test, cycle_ids_to_test)
             # -----
 
@@ -564,7 +564,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
                 # 添加已初始化点迹
                 for k, v in window_states:
-                    print(k, v)
+                    # print(k, v)
                     plot = Plot(v['cycle'], v['x'], v['y'], v['v'], v['a'], v['angle_in_degrees'])
                     track.add_plot(plot)
                 tracks.append(track)
@@ -822,11 +822,11 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
         return False, 2
 
 
-def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma=160, m=3, n=4):
+def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
     """
     :param plots_per_cycle:
     :param cycle_time:
-    :param sigma:
+    :param sigma_s:
     :param m:
     :param n:
     :return:
@@ -841,33 +841,137 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma=160, m=3, n=4):
         if succeed:
             break
 
-        # 取滑窗(连续6个cycle)
+        # 取滑窗(连续5个cycle)
         window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=1)
 
-        for j in range(1, len(window) - 1):
-            # ----- 构建连续3个相邻cycle的plots匹配(排除噪声, 相当于点迹预处理过程)
-            K = min([cycle_plots.shape[0] for cycle_plots in window])  # 最小公共点迹数
-            mapping_pre_to_cur = matching_plots_nn(window[j-1], window[j], K)
-            mapping_cur_to_nex = matching_plots_nn(window[j], window[j+1], K)
+        # ----------对窗口中进行m/n统计
+        # 构建mapping链
+        K = min([cycle_plots.shape[0] for cycle_plots in window])  # 最小公共点迹数
+        mappings = defaultdict(dict)
+        for j in range(len(window) - 1, 0, -1):
+            # ----- 构建相邻cycle的mapping
+            mapping = matching_plots_nn(window[j], window[j - 1], K)
             # -----
 
-            # 判断是否mapping正确
-            if len(set(mapping_pre_to_cur.keys())) != len(set(mapping_pre_to_cur.values())) \
-                    or len(set(mapping_cur_to_nex.keys())) != len(set(mapping_cur_to_nex.values())):
-                continue  # 窗口内滑动
+            if len(set(mapping.values())) != len(set(mapping.keys())):
+                break
+            else:
+                mappings[j] = mapping
 
-            print('Found {:d} plots-triplet matching.'.format(K))
-            # 构建暂时航迹
-            for k in range(K):  # 遍历每个暂时航迹
-                # ----- 航迹状态记录
-                # 窗口检出数计数: 每个暂时航迹单独计数
-                n_pass = 0
+        if len(mappings) < m:  # 至少有m个cycle有效数据, 对应m-1个mapping
+            continue  # 滑动到下一个window
 
-                # 窗口运动状态记录: 每个航迹单独记录(速度, 加速度, 航向偏转角)
-                window_states = defaultdict(dict)
+        # 对mapping结果进行排序(按照key降序排列)
+        mappings = sorted(mappings.items(), key=lambda x: x[0], reverse=True)
+        # print(mappings)
+
+        # 构建暂时航迹
+        for k in range(K):  # 遍历每个暂时航迹
+            # ----- 航迹状态记录
+            # 窗口检出数计数: 每个暂时航迹单独计数
+            n_pass = 0
+
+            # 窗口运动状态记录: 每个航迹单独记录(速度, 加速度, 航向偏转角)
+            window_states = defaultdict(dict)
+            # -----
+
+            # ----- 构建暂时航迹组成的点迹(plots)
+            plot_ids = []
+            id = -1
+
+            # 提取倒序第一个有效cycle的第k个plot id
+            keys = mappings[0][1].keys()
+            keys = sorted(keys, reverse=False)  # 按照当前window最大的有效cycle的点迹序号升序排列
+            id = keys[k]
+            plot_ids.append(id)
+
+            # 按照mapping链递推其余cycle的plot id
+            for (c, mapping) in mappings:  # mapping已经按照cycle倒序排列过了
+                id = mapping[id]  # 倒推映射链plot id
+                plot_ids.append(id)
+
+            # print(ids)  # ids是按照cycle倒排的
+            # 根据ids链接构建plot链: 暂时航迹
+            cycle_ids = [c for (c, mapping) in mappings]  # 按照cycle编号倒排
+            cycle_ids.extend([mappings[-1][0] - 1])
+
+            assert len(cycle_ids) == len(plot_ids)
+
+            plots = [window[cycle][plot_id] for cycle, plot_id in zip(cycle_ids, plot_ids)]
+            # print(plots)
+
+            # window内逐一门限测试
+            # for l, (cycle_id, plot) in enumerate(zip(cycle_ids_to_test, plots_to_test)):
+            for l in range(len(plots) - 2):
+                cycle_id = cycle_ids[l]
+
+                # 构建连续三个cycle的plots
+                # plots_2 = [plots[l + 1], plots[l]]
+                plots_3 = [plots[l + 2], plots[l + 1], plots[l]]
+                # plot_plots(plots_2, [cycle_ids[l+1], cycle_ids[l]])
+                # plot_plots(plots_3, [cycle_ids[l+2], cycle_ids[l+1], cycle_ids[l]])
+
+                # 估算当前点迹的运动状态
+                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                # v = get_v(plots_2, cycle_time)
+
+                # 航向偏移角度估算
+                angle_in_degrees = math.degrees(angle_in_radians)
+                angle_in_degrees = angle_in_degrees if angle_in_degrees >= 0.0 else angle_in_degrees + 360.0
+                angle_in_degrees = angle_in_degrees if angle_in_degrees <= 360.0 else angle_in_degrees - 360.0
+
+                # 初始波门判定: j是当前判定序列的第二次扫描
+                if start_gate_check(cycle_time, plots[l + 2], plots[l + 1], v0=340):
+                    # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
+                    # 相关(跟踪)波门判定page71-72
+                    if relate_gate_check(cycle_time, v, plots[l + 2], plots[l + 1], plots[l], sigma=sigma_s):
+                        n_pass += 1
+
+                        # window运动状态记录
+                        state_dict = {
+                            'cycle': cycle_id,
+                            'x': plots[l][0],
+                            'y': plots[l][1],
+                            'v': v,
+                            'a': a,
+                            'angle_in_degrees': angle_in_degrees
+                        }
+                        window_states[cycle_id] = state_dict
+
+                    else:
+                        print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
+                else:
+                    print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
+                          .format(i, j))
+
+            # 判定是否当前航迹初始化成功
+            if n_pass >= m:
+                print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+
+                # -----初始化航迹对象
+                track = Track()
+                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.init_cycle = i  # 航迹起始cycle
+                window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
+
+                # 添加已初始化点迹
+                for k, v in window_states:
+                    # print(k, v)
+                    plot = Plot(v['cycle'], v['x'], v['y'], v['v'], v['a'], v['angle_in_degrees'])
+                    track.add_plot(plot)
+                tracks.append(track)
                 # -----
 
-                
+                # 航迹起始成功标识
+                succeed = True
+
+                # 清空窗口状态
+                window_states = defaultdict(dict)
+
+                # 跳出当前航迹检测, 到下一个暂时航迹
+                continue
+
+    return succeed, tracks
 
 
 def logic_method(track, cycle_time, sigma=160, m=3, n=4):
@@ -894,8 +998,8 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 1:  # 从第三个点迹开始求v, a, angle
-                # 获取连续3个点迹
+            if j >= 1:  # 从第2个点迹开始求v, a, angle
+                # 获取连续3(或2)个点迹
                 # plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
                 plots_2 = window[j - 1: j + 1]  # 2 plots:[j-1, j]
 
@@ -912,12 +1016,11 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                 #       .format(i, v, a, angle_in_degrees))
 
                 # ----- 判定逻辑
-                if j >= 1 and j < len(window) - 1:  # 从第3次扫描开始逻辑判定: j==2的点迹作为航迹头
+                if j >= 1 and j < len(window) - 1:  # 从第2次扫描开始逻辑判定: j==2的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
                     if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
-
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
-                        # page71-72
+                        # 相关(跟踪)波门判定page71-72
                         if relate_gate_check(cycle_time, v, window[j - 1], window[j], window[j + 1], sigma=sigma):
                             n_pass += 1
                         else:
@@ -997,11 +1100,11 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
                             if ret == 2:
                                 print(
                                     'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of shift sigma.'
-                                    .format(i, j))
+                                        .format(i, j))
                             elif ret == 1:
                                 print(
                                     'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of angle sigma.'
-                                    .format(i, j))
+                                        .format(i, j))
                     else:
                         print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
                               .format(i, j))
@@ -1053,10 +1156,10 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
                                                  a_max=50, angle_max=10,  # 军机7°/s
                                                  m=3, n=4)
     elif method == 1:  # 逻辑法
-        logic_method_with_bkg(plots_per_cycle,
-                              cycle_time,
-                              sigma=160,
-                              m=3, n=4)
+        succeed, tracks = logic_method_with_bkg(plots_per_cycle,
+                                                cycle_time,
+                                                sigma_s=160,
+                                                m=3, n=4)
 
     if succeed:
         M = len(tracks)
@@ -1478,7 +1581,7 @@ if __name__ == '__main__':
 
     # test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=0)
 
-    # plot_plots_in_each_cycle('./RadarDataProcessAlg/plots_in_each_cycle_1s.npy')
+    # plot_plots_in_each_cycle('./plots_in_each_cycle_1s.npy')
     test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
                                      cycle_time=1,
                                      method=1)
