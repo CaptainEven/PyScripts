@@ -1049,13 +1049,13 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
 # ----- 修正逻辑法 -----
 
 def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
-                                    s_sigma=160, a_sigma=10,
+                                    sigma_s=160, sigma_a=10,
                                     m=3, n=4):
     """
     :param plots_per_cycle:
     :param cycle_time: 
-    :param s_sigma: 
-    :param a_sigma: 
+    :param sigma_s: 
+    :param sigma_a: 
     :param m: 
     :param n: 
     :return: 
@@ -1155,7 +1155,7 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
 
                     is_pass, ret = corrected_relate_gate_check(cycle_time, v,
                                                                plots[l + 2], plots[l + 1], plots[l],
-                                                               s_sigma, a_sigma)
+                                                               sigma_s, sigma_a)
                     if is_pass:
                         n_pass += 1
 
@@ -1332,22 +1332,22 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     elif method == 2:  # 修正逻辑法
         succeed, tracks = corrected_logic_method_with_bkg(plots_per_cycle,
                                                           cycle_time,
-                                                          s_sigma=160, a_sigma=8,
+                                                          sigma_s=160, sigma_a=8,
                                                           m=3, n=4)
 
     if succeed:
         M = len(tracks)
         print('{:d} tracks initialization succeeded.'.format(M))
 
-        ## ---------- 可视化成功起始的航迹
-        for track in tracks:
-            # print(track)
-            cycles = [plot.cycle_ for plot in track.plots_]
-            xs = [plot.x_ for plot in track.plots_]
-            ys = [plot.y_ for plot in track.plots_]
-
-            plots = [[x, y] for x, y in zip(xs, ys)]
-            plot_plots(plots, cycles)
+        # ## ---------- 可视化成功起始的航迹
+        # for track in tracks:
+        #     # print(track)
+        #     cycles = [plot.cycle_ for plot in track.plots_]
+        #     xs = [plot.x_ for plot in track.plots_]
+        #     ys = [plot.y_ for plot in track.plots_]
+        #
+        #     plots = [[x, y] for x, y in zip(xs, ys)]
+        #     plot_plots(plots, cycles)
 
         # ---------- TODO: 后续点航相关过程
         
@@ -1759,7 +1759,7 @@ if __name__ == '__main__':
     # plot_plots_in_each_cycle('./plots_in_each_cycle_1s.npy')
     test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
                                      cycle_time=1,
-                                     method=0)
+                                     method=2)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
