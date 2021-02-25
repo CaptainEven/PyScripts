@@ -63,7 +63,7 @@ class Plot(object):
         :param y: 点迹笛卡尔坐标y(m)
         :param v: 点迹速度(m/s)
         :param a: 点迹加速度(m/s²)
-        :param heading: °
+        :param heading: 航向偏转角°
         """
         self.cycle_ = cycle
         self.x_ = x
@@ -745,7 +745,7 @@ def extrapolate_plot(plot_pre, plot_cur, s):
 
 
 # 数据互联是通过相关波门实现的
-def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
+def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma_s):
     """
     Page46
     最简单的圆(环)形相关波门:
@@ -755,7 +755,7 @@ def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
     :param plot_pre:
     :param plot_cur:
     :param plot_next:
-    :param sigma:
+    :param sigma_s:
     :return:
     """
     # 取当前测试序列第三次扫描点迹的笛卡尔坐标
@@ -768,10 +768,12 @@ def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma):
     x_extra, y_extra = extrapolate_plot(plot_pre, plot_cur, s)
 
     # 计算实际点迹与外推点迹之间的距离
-    dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
-                     (y_nex - y_extra) * (y_nex - y_extra))
+    shift_vector = np.array([x_extra, y_extra]) - np.array([x_nex, y_nex])
+    dist = np.linalg.norm(shift_vector, ord=2)
+    # dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
+    #                  (y_nex - y_extra) * (y_nex - y_extra))
 
-    return dist <= sigma
+    return dist <= sigma_s
 
 
 def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_sigma, a_sigma):
@@ -926,7 +928,7 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
                 if start_gate_check(cycle_time, plots[l + 2], plots[l + 1], v0=340):
                     # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                     # 相关(跟踪)波门判定page71-72
-                    if relate_gate_check(cycle_time, v, plots[l + 2], plots[l + 1], plots[l], sigma=sigma_s):
+                    if relate_gate_check(cycle_time, v, plots[l + 2], plots[l + 1], plots[l], sigma_s=sigma_s):
                         n_pass += 1
 
                         # window运动状态记录
@@ -1023,7 +1025,7 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                     if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # 相关(跟踪)波门判定page71-72
-                        if relate_gate_check(cycle_time, v, window[j - 1], window[j], window[j + 1], sigma=sigma):
+                        if relate_gate_check(cycle_time, v, window[j - 1], window[j], window[j + 1], sigma_s=sigma):
                             n_pass += 1
                         else:
                             print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
@@ -1070,7 +1072,7 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
         if succeed:
             break
 
-        # 取滑窗(连续5个cycle)
+        # 取滑窗(连续5或6个cycle)
         window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=2)
 
         # ----------对窗口中进行m/n统计
@@ -1202,7 +1204,7 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                 tracks.append(track)
                 # -----
 
-                # 航迹起始成功标识
+                # 设置航迹起始是否成功标识
                 succeed = True
 
                 # 清空窗口状态
@@ -1210,6 +1212,12 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
 
                 # 跳出当前航迹检测, 到下一个暂时航迹
                 continue
+            # else:  # 如果在当前窗口没有起始成功
+            #     # 设置航迹起始是否成功标识
+            #     succeed = False
+            #
+            #     # 清空窗口状态
+            #     window_states = defaultdict(dict)
 
     return succeed, tracks
 
@@ -1332,7 +1340,7 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
     elif method == 2:  # 修正逻辑法
         succeed, tracks = corrected_logic_method_with_bkg(plots_per_cycle,
                                                           cycle_time,
-                                                          sigma_s=160, sigma_a=8,
+                                                          sigma_s=160, sigma_a=10,
                                                           m=3, n=4)
 
     if succeed:
