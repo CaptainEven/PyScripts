@@ -429,7 +429,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
     # 取滑动窗口
     succeed = False
-    for i in range(0, N - n):  # cycle i
+    for i in range(2, N - n):  # cycle i
         if succeed:
             break
 
@@ -797,8 +797,10 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
     x_extra, y_extra = extrapolate_plot(plot_pre, plot_cur, s)
 
     # 计算实际点迹与外推点迹之间的距离
-    dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
-                     (y_nex - y_extra) * (y_nex - y_extra))
+    # dist = math.sqrt((x_nex - x_extra) * (x_nex - x_extra) +
+    #                  (y_nex - y_extra) * (y_nex - y_extra))
+    shift_vector = np.array([x_nex, y_nex]) - np.array([x_extra, y_extra])
+    dist = np.linalg.norm(shift_vector, ord=2)
 
     # 修正判定
     if dist <= s_sigma:
@@ -837,12 +839,12 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
 
     # 取滑动窗口
     succeed = False
-    for i in range(1, N - n):  # cycle i
+    for i in range(2, N - n):  # cycle i
         if succeed:
             break
 
         # 取滑窗(连续5个cycle)
-        window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=1)
+        window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=2)
 
         # ----------对窗口中进行m/n统计
         # 构建mapping链
@@ -1046,7 +1048,9 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
 
 # ----- 修正逻辑法 -----
 
-def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4):
+def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
+                                    s_sigma=160, a_sigma=10,
+                                    m=3, n=4):
     """
     :param plots_per_cycle:
     :param cycle_time: 
@@ -1062,15 +1066,15 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time, s_sigma=160, a_
 
     # 取滑动窗口
     succeed = False
-    for i in range(1, N - n):  # cycle i
+    for i in range(2, N - n):  # cycle i
         if succeed:
             break
 
         # 取滑窗(连续5个cycle)
-        window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=1)
+        window = slide_window(plots_per_cycle, n, start_cycle=i, skip_cycle=2)
 
         # ----------对窗口中进行m/n统计
-        # 构建mapping链
+        # 对窗口构建mapping链: 倒序
         K = min([cycle_plots.shape[0] for cycle_plots in window])  # 最小公共点迹数
         mappings = defaultdict(dict)
         for j in range(len(window) - 1, 0, -1):
@@ -1184,9 +1188,9 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time, s_sigma=160, a_
             if n_pass >= m:
                 print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
 
-                # -----初始化航迹对象
+                # ----- 建立稳定航迹
                 track = Track()
-                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.state_ = 2      # 航迹状态: 可靠航迹
                 track.init_cycle = i  # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
@@ -1335,7 +1339,7 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
         M = len(tracks)
         print('{:d} tracks initialization succeeded.'.format(M))
 
-        # ---------- 可视化成功起始的航迹
+        ## ---------- 可视化成功起始的航迹
         for track in tracks:
             # print(track)
             cycles = [plot.cycle_ for plot in track.plots_]
@@ -1755,7 +1759,7 @@ if __name__ == '__main__':
     # plot_plots_in_each_cycle('./plots_in_each_cycle_1s.npy')
     test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
                                      cycle_time=1,
-                                     method=2)
+                                     method=0)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
