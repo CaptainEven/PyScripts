@@ -72,6 +72,24 @@ class Plot(object):
         self.a_ = a
         self.heading_ = heading
 
+    def __sub__(self, plot):
+        """
+        重载'-'运算符
+        :param plot:
+        :return: 运动状态残差向量: x_res, y_res_, v_res, a_res, heading_res
+        """
+        assert isinstance(plot, Plot)
+
+        # 列向量
+        res_vector = np.zeros((5, 1), dtype=np.float32)
+        res_vector[0][0] = self.x_ - plot.x_
+        res_vector[1][0] = self.y_ - plot.y_
+        res_vector[2][0] = self.v_ - plot.v_
+        res_vector[3][0] = self.a_ - plot.a_
+        res_vector[4][0] = self.heading_ - plot.heading_
+
+        return res_vector
+
 
 class Track(object):
     def __init__(self):
