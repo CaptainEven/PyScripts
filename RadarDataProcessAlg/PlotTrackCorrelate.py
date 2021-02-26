@@ -169,7 +169,7 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
 ## 最近邻(NN)点-航相关算法
 def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             track_init_method=0,
-                            σ_s=500, λ=3):
+                            σ_s=250, λ=3):
     """
     :param plots_per_cycle:
     :param cycle_time:
@@ -222,6 +222,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
         print('Start correlation from cycle {:d}...'.format(start_cycle))
 
         # ---------- 主循环: 遍历接下来的所有cycles
+        terminate_list = []
         for i in range(start_cycle, n_cycles):
             # 遍历下次扫描出现的所有点迹
             cycle_plots = plots_per_cycle[i]
@@ -233,6 +234,8 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
             for track in tracks:
                 # print('Processing track {:d}.'.format(track.id_))
+                if track.id_ in terminate_list:
+                    continue
 
                 # 构建预测点迹对象: 跟last_cycle的plot保持一致
                 plot_pred = get_predict_plot(track, cycle_time)
@@ -241,6 +244,12 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                 can_plot_objs = get_candidate_plot_objs(cycle_time, track, plot_pred, cycle_plots, σ_s)
                 if len(can_plot_objs) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
                     print("Track {:d} has zero observation plots within it's relating gate.".format(track.id_))
+                    track.quality_counter_ -= 1
+
+                    if track.quality_counter_ <= 0:
+                        print('Track {:d} is to be terminated.'.format(track.id_))
+                        terminate_list.append(track.id_)
+
                     continue
 
                 # 计算残差的协方差矩阵
@@ -287,7 +296,6 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                         # 点迹-航迹直接相关
                         track.add_plot(obs_plot_obj)
 
-
                 elif len(can_plot_objs) > 1:
                     # NN点航关联
                     min_ma_dist = min(ma_dists)
@@ -327,7 +335,7 @@ def test_nn_plot_track_correlate(plots_f_path):
     cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
 
     # ---------- 点航相关
-    nn_plot_track_correlate(plots_per_cycle, cycle_time=cycle_time, track_init_method=2)
+    nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=2)
     # ----------
 
 
