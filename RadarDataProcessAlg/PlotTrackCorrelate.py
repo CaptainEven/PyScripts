@@ -69,7 +69,7 @@ def compute_cov_mat(plot_pred, can_plot_objs):
         res_mat[i, 3] = a_res
         res_mat[i, 4] = heading_res
 
-    print(res_mat)
+    # print(res_mat)
 
     # ----- 计算滤波器残差矩阵的协方差矩阵
     cov_mat = np.cov(res_mat, rowvar=False)
@@ -135,7 +135,7 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
         a = (v1 - v0) / cycle_time
 
         # 计算航向偏转角
-        heading = math.degrees(math.acos(np.dot(shift0, shift1) / (dist0 * dist1)))
+        heading = math.degrees(math.acos(np.dot(shift0, shift1) / (dist0 * dist1 + 1e-6)))
 
         # 构建plot object
         plot_obj = Plot(last_cycle + 1, plot[0], plot[1], v1, a, heading)
@@ -148,7 +148,7 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
 ## 最近邻(NN)点-航相关算法
 def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             track_init_method=0,
-                            σ_s=160, λ=3):
+                            σ_s=500, λ=3):
     """
     :param plots_per_cycle:
     :param cycle_time:
@@ -198,27 +198,28 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
         # 获取下一个扫描cycle编号
         last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
         start_cycle = last_cycle + 1
-        print('Start correlation from cycle {:d}.'.format(start_cycle))
+        print('Start correlation from cycle {:d}...'.format(start_cycle))
 
         # ---------- 主循环: 遍历接下来的所有cycles
         for i in range(start_cycle, n_cycles):
             # 遍历下次扫描出现的所有点迹
-            plots = plots_per_cycle[last_cycle + 1]
-            print(plots)
+            cycle_plots = plots_per_cycle[i]
+            # print(cycle_plots)
 
             # -----计算马氏距离代价矩阵
-            N = plots.shape[0]
+            N = cycle_plots.shape[0]
             cost_mat = np.zeros((M, N), dtype=np.float32)
 
             for track in tracks:
-                print('Processing track {:d}.'.format(track.id_))
+                # print('Processing track {:d}.'.format(track.id_))
 
                 # 构建预测点迹对象: 跟last_cycle的plot保持一致
                 plot_pred = get_predict_plot(track, cycle_time)
 
                 # 计算候选观测点迹
-                can_plot_objs = get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s)
+                can_plot_objs = get_candidate_plot_objs(cycle_time, track, plot_pred, cycle_plots, σ_s)
                 if len(can_plot_objs) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
+                    print("Track {:d} has zero observation plots within it's relating gate.".format(track.id_))
                     continue
 
                 # 计算残差的协方差矩阵
@@ -234,7 +235,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                 # ----- 判定法则
                 if len(can_plot_objs) == 1:
                     # 取观测值
-                    the_plot_obj = can_plot_objs[0]
+                    obs_plot_obj = can_plot_objs[0]
 
                     # 计算该点迹与其他航迹的距离
                     other_tracks = [track_o for track_o in tracks if track_o.id_ != track.id_]
@@ -244,7 +245,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                         plot_pred_o = get_predict_plot(track_o, cycle_time)
 
                         # 计算候选观测点迹
-                        can_plot_objs_o = get_candidate_plot_objs(cycle_time, track_o, plot_pred_o, plots, σ_s)
+                        can_plot_objs_o = get_candidate_plot_objs(cycle_time, track_o, plot_pred_o, cycle_plots, σ_s)
 
                         if len(can_plot_objs_o) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
                             other_ma_dists.append(np.inf)
@@ -253,26 +254,33 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             cov_mat_o = compute_cov_mat(plot_pred_o, can_plot_objs_o)
 
                             # --- 计算马氏距离
-                            ma_dist_o = compute_ma_dist(cov_mat_o, the_plot_obj, plot_pred_o)
+                            ma_dist_o = compute_ma_dist(cov_mat_o, obs_plot_obj, plot_pred_o)
                             other_ma_dists.append(ma_dist_o)
 
                             # # 判断该点迹是否同时落入其他航迹
-                            # if is_plot_in_relate_gate([the_plot_obj.x_, the_plot_obj.y_], plot_pred_o, σ_s):
+                            # if is_plot_in_relate_gate([obs_plot_obj.x_, obs_plot_obj.y_], plot_pred_o, σ_s):
                             #     pass
                     # print(other_ma_dists)
 
                     if ma_dist <= λ * min(other_ma_dists):
                         # 点迹-航迹直接相关
-                        track.add_plot(the_plot_obj)
+                        track.add_plot(obs_plot_obj)
 
 
                 elif len(can_plot_objs) > 1:
                     # NN点航关联
                     min_ma_dist = min(ma_dists)
                     min_idx = ma_dists.index(min_ma_dist)
-                    the_plot_obj = can_plot_objs[min_idx]
-                    track.add_plot(the_plot_obj)
-        # ----------
+                    obs_plot_obj = can_plot_objs[min_idx]
+                    track.add_plot(obs_plot_obj)
+            # ----------
+
+            # logging
+            for track in tracks:
+                print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i))
+            print('Cycle {:d} correlation done.\n'.format(i))
+
+        # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
 
     else:
         print('Track initialization failed.')

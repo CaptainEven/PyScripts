@@ -1799,10 +1799,10 @@ if __name__ == '__main__':
 
     # test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=0)
 
-    # plot_plots_in_each_cycle('./plots_in_each_cycle_1s.npy')
-    test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
-                                     cycle_time=1,
-                                     method=2)
+    plot_plots_in_each_cycle('./plots_in_each_cycle_1s.npy')
+    # test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
+    #                                  cycle_time=1,
+    #                                  method=2)
 
     # track = gen_track_cv_ca(N=60, v0=340, a=20, cycle_time=1)
     # plot_polar_cartesian_map(track)
