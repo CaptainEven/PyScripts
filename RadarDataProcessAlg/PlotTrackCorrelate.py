@@ -145,6 +145,27 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
     return can_plot_objs
 
 
+def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
+    """
+    :param cov_mat:
+    :param can_plot_obj:
+    :param plot_pred:
+    :return:
+    """
+    # 计算运动状态残差(观测向量-预测向量)向量
+    res_vector = can_plot_obj - plot_pred  # Plot类对'-'进行了重载
+
+    if cov_mat.size == 1:  # 只有1个观测点迹落入相关(跟踪)波门
+        # 计算马氏距离
+        ma_dist = math.sqrt(res_vector.T.dot(res_vector))
+
+    else:  # 5×5  有至少2个观测点迹落入相关(跟踪)波门
+        # 计算马氏距离
+        ma_dist = math.sqrt(np.dot(res_vector.T, cov_mat).dot(res_vector))
+
+    return ma_dist
+
+
 ## 最近邻(NN)点-航相关算法
 def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             track_init_method=0,
@@ -284,27 +305,6 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
     else:
         print('Track initialization failed.')
-
-
-def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
-    """
-    :param cov_mat:
-    :param can_plot_obj:
-    :param plot_pred:
-    :return:
-    """
-    # 计算运动状态残差(观测向量-预测向量)向量
-    res_vector = can_plot_obj - plot_pred  # Plot类对'-'进行了重载
-
-    if cov_mat.size == 1:  # 只有1个观测点迹落入相关(跟踪)波门
-        # 计算马氏距离
-        ma_dist = math.sqrt(res_vector.T.dot(res_vector))
-
-    else:  # 5×5  有至少2个观测点迹落入相关(跟踪)波门
-        # 计算马氏距离
-        ma_dist = math.sqrt(np.dot(res_vector.T, cov_mat).dot(res_vector))
-
-    return ma_dist
 
 
 def test_nn_plot_track_correlate(plots_f_path):
