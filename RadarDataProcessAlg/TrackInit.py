@@ -94,11 +94,13 @@ class Plot(object):
 class Track(object):
     def __init__(self):
         self.id_ = -1
-        self.state_ = 0  # 航迹状态
+        self.state_ = 0        # 航迹状态
         self.plots_ = []
         self.init_cycle_ = -1
+        self.quality = 0       # 航迹质量值
 
     def add_plot(self, plot):
+        assert isinstance(plot, Plot)
         self.plots_.append(plot)
 
 
@@ -578,9 +580,9 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
                 # -----初始化航迹对象
                 track = Track()
-                track.id_ = track_cnt   # 航迹编号
-                track.state_ = 2        # 航迹状态: 可靠航迹
-                track.init_cycle_ = i   # 航迹起始cycle
+                track.id_ = track_cnt  # 航迹编号
+                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.init_cycle_ = i  # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
@@ -978,9 +980,9 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
 
                 # -----初始化航迹对象
                 track = Track()
-                track.id_ = track_cnt   # 航迹编号
-                track.state_ = 2        # 航迹状态: 可靠航迹
-                track.init_cycle_ = i   # 航迹起始cycle
+                track.id_ = track_cnt  # 航迹编号
+                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.init_cycle_ = i  # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
@@ -1222,7 +1224,7 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                 # ----- 建立稳定航迹
                 track = Track()
                 track.id_ = track_cnt  # 航迹编号
-                track.state_ = 2      # 航迹状态: 可靠航迹
+                track.state_ = 2  # 航迹状态: 可靠航迹
                 track.init_cycle_ = i  # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
@@ -1391,7 +1393,7 @@ def test_track_init_methods_with_bkg(plots_f_path, cycle_time, method):
         #     plot_plots(plots, cycles)
 
         # ---------- TODO: 后续点航相关过程
-        
+
         pass
 
     else:
