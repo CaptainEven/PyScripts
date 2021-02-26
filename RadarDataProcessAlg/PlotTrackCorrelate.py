@@ -80,13 +80,13 @@ def compute_cov_mat(plot_pred, can_plot_objs):
         return cov_mat
 
 
-def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, sigma_s):
+def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
     """
     :param cycle_time:
     :param track:
     :param plot_pred:
     :param plots:
-    :param sigma_s:
+    :param σ_s:
     :return:
     """
     last_cycle = max([plot.cycle_ for plot in track.plots_])
@@ -96,12 +96,11 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, sigma_s):
     plot_cur = [plot for plot in track.plots_ if plot.cycle_ == last_cycle][0]
 
     # ----- 计算落入相关波门的候选点迹: 基于相关(跟踪)波门滤波
-    # 计算实际点迹与外推点迹之间的距离
     candidate_plots = []
     for plot in plots:
         shift_vector = np.array(plot) - np.array([plot_pred.x_, plot_pred.y_])
-        l2_dist = np.linalg.norm(shift_vector, ord=2)
-        if l2_dist < sigma_s:
+        l2_dist = np.linalg.norm(shift_vector, ord=2)  # 计算实际点迹与外推点迹之间的距离
+        if l2_dist < σ_s:
             candidate_plots.append(plot)
 
     # print(candidate_plots)
@@ -129,6 +128,7 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, sigma_s):
         plot_obj = Plot(last_cycle + 1, plot[0], plot[1], v1, a, heading)
 
         can_plot_objs.append(plot_obj)
+
     return can_plot_objs
 
 
@@ -185,7 +185,8 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=0):
         print('Start correlation from cycle {:d}.'.format(start_cycle))
 
         # ---------- 主循环: 遍历接下来的所有cycles
-        sigma_s = 160
+        σ_s = 160  # sigma of distance
+        λ = 3
         for i in range(start_cycle, n_cycles):
             # 遍历下次扫描出现的所有点迹
             plots = plots_per_cycle[last_cycle + 1]
@@ -195,42 +196,74 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=0):
             N = plots.shape[0]
             cost_mat = np.zeros((M, N), dtype=np.float32)
 
-            # 根据滤波器残差的协方差矩阵cov_mat计算
             for track in tracks:
+                print('Processing track {:d}.'.format(track.id_))
+
                 # 构建预测点迹对象: 跟last_cycle的plot保持一致
                 plot_pred = get_predict_plot(track, cycle_time)
 
                 # 计算候选观测点迹
-                can_plot_objs = get_candidate_plot_objs(cycle_time, track, plot_pred, plots, sigma_s)
+                can_plot_objs = get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s)
+                if len(can_plot_objs) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
+                    continue
 
-                # 计算残差的协方差矩阵
-                cov_mat = compute_cov_mat(plot_pred, can_plot_objs)
-                # print(cov_mat)
-                if cov_mat.size == 1:  # 只有1个观测点迹落入相关(跟踪)波门
-                    # 计算运动状态残差(观测向量-预测向量)向量
-                    res_vector = can_plot_objs[0] - plot_pred
+                # --- 计算马氏距离
+                ma_dist = compute_ma_dist(plot_pred, can_plot_objs)
 
-                    # 计算马氏距离
-                    ma_dist = math.sqrt(res_vector.T.dot(res_vector))
+                # ----- 点迹-航迹相关判定法则
+                # 计算与其他航迹的距离
+                other_tracks = [track_o for track_o in tracks if track_o.id_ != track.id_]
+                other_ma_dists = []
+                for track_o in other_tracks:
+                    # 构建预测点迹对象: 跟last_cycle的plot保持一致
+                    plot_pred_o = get_predict_plot(track_o, cycle_time)
 
-                    # 点迹-航迹相关判定法则
+                    # 计算候选观测点迹
+                    can_plot_objs_o = get_candidate_plot_objs(cycle_time, track_o, plot_pred_o, plots, σ_s)
+                    if len(can_plot_objs_o) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
+                        other_ma_dists.append(np.inf)
+                    else:
+                        # --- 计算马氏距离
+                        ma_dist_o = compute_ma_dist(plot_pred_o, can_plot_objs_o)
+                        other_ma_dists.append(ma_dist_o)
+                    print(other_ma_dists)
 
-                else:  # 5×5  有至少2个观测点迹落入相关(跟踪)波门
-                    ma_dists = []
-                    for can_plot_obj in can_plot_objs:
-                        # 计算运动状态残差(观测向量-预测向量)向量
-                        res_vector = can_plot_obj - plot_pred
+                    # ----- 判定法则
 
-                        # 计算马氏距离
-                        ma_dist = math.sqrt(np.dot(res_vector.T, cov_mat).dot(res_vector))
-                        ma_dists.append(ma_dist)
-
-                    # 点迹-航迹相关判定法则
 
         # ----------
 
     else:
         print('Track initialization failed.')
+
+
+def compute_ma_dist(plot_pred, can_plot_objs):
+    """
+    :param plot_pred:
+    :param can_plot_objs:
+    :return:
+    """
+    # 计算残差的协方差矩阵
+    cov_mat = compute_cov_mat(plot_pred, can_plot_objs)
+    # print(cov_mat)
+
+    if cov_mat.size == 1:  # 只有1个观测点迹落入相关(跟踪)波门
+        # 计算运动状态残差(观测向量-预测向量)向量
+        res_vector = can_plot_objs[0] - plot_pred
+
+        # 计算马氏距离
+        ma_dist = math.sqrt(res_vector.T.dot(res_vector))
+
+    else:  # 5×5  有至少2个观测点迹落入相关(跟踪)波门
+        ma_dists = []
+        for can_plot_obj in can_plot_objs:
+            # 计算运动状态残差(观测向量-预测向量)向量
+            res_vector = can_plot_obj - plot_pred
+
+            # 计算马氏距离
+            ma_dist = math.sqrt(np.dot(res_vector.T, cov_mat).dot(res_vector))
+
+    return ma_dist
 
 
 def test_nn_plot_track_correlate(plots_f_path):

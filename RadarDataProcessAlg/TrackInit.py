@@ -93,9 +93,10 @@ class Plot(object):
 
 class Track(object):
     def __init__(self):
+        self.id_ = -1
         self.state_ = 0  # 航迹状态
         self.plots_ = []
-        self.init_cycle = -1
+        self.init_cycle_ = -1
 
     def add_plot(self, plot):
         self.plots_.append(plot)
@@ -444,6 +445,7 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
     N = plots_per_cycle.shape[0]  # number of cycles
 
     tracks = []  # ret
+    track_cnt = 0
 
     # 取滑动窗口
     succeed = False
@@ -576,8 +578,9 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
                 # -----初始化航迹对象
                 track = Track()
-                track.state_ = 2  # 航迹状态: 可靠航迹
-                track.init_cycle = i  # 航迹起始cycle
+                track.id_ = track_cnt   # 航迹编号
+                track.state_ = 2        # 航迹状态: 可靠航迹
+                track.init_cycle_ = i   # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
@@ -587,6 +590,8 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                     track.add_plot(plot)
                 tracks.append(track)
                 # -----
+                # 更新航迹编号
+                track_cnt += 1
 
                 # 航迹起始成功标识
                 succeed = True
@@ -856,6 +861,7 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
     N = plots_per_cycle.shape[0]  # number of cycles
 
     tracks = []  # ret
+    track_cnt = 0
 
     # 取滑动窗口
     succeed = False
@@ -972,8 +978,9 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
 
                 # -----初始化航迹对象
                 track = Track()
-                track.state_ = 2  # 航迹状态: 可靠航迹
-                track.init_cycle = i  # 航迹起始cycle
+                track.id_ = track_cnt   # 航迹编号
+                track.state_ = 2        # 航迹状态: 可靠航迹
+                track.init_cycle_ = i   # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
@@ -983,6 +990,9 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
                     track.add_plot(plot)
                 tracks.append(track)
                 # -----
+
+                # 更新航迹编号
+                track_cnt += 1
 
                 # 航迹起始成功标识
                 succeed = True
@@ -1083,6 +1093,7 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
     N = plots_per_cycle.shape[0]  # number of cycles
 
     tracks = []  # ret
+    track_cnt = 0  # 航迹编号
 
     # 取滑动窗口
     succeed = False
@@ -1210,8 +1221,9 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
 
                 # ----- 建立稳定航迹
                 track = Track()
+                track.id_ = track_cnt  # 航迹编号
                 track.state_ = 2      # 航迹状态: 可靠航迹
-                track.init_cycle = i  # 航迹起始cycle
+                track.init_cycle_ = i  # 航迹起始cycle
                 window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
@@ -1221,6 +1233,9 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                     track.add_plot(plot)
                 tracks.append(track)
                 # -----
+
+                # 更新track编号
+                track_cnt += 1
 
                 # 设置航迹起始是否成功标识
                 succeed = True
