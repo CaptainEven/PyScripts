@@ -216,7 +216,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
         #     plots = [[x, y] for x, y in zip(xs, ys)]
         #     plot_plots(plots, cycles)
 
-        # ---------- TODO: 后续点航相关过程
+        # ---------- 航迹起始成功后, 点航相关过程
         # 获取下一个扫描cycle编号
         last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
         start_cycle = last_cycle + 1
@@ -311,7 +311,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                 print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i))
             print('Cycle {:d} correlation done.\n'.format(i))
 
-        # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
+        # ---------- TODO:对完成所有cycle点迹-航迹关联的航迹进行动态可视化
 
     else:
         print('Track initialization failed.')
