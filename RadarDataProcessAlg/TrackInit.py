@@ -49,8 +49,15 @@ colors = [
 TrackStates = {
     0: 'Potential',  # 可能航迹
     1: 'Temporaty',  # 暂时航迹
-    2: 'Reliable',  # 可靠航迹
-    3: 'Fixed',  # 固定航迹
+    2: 'Reliable',   # 可靠航迹
+    3: 'Fixed',      # 固定航迹
+    4: 'Terminated'  # 撤销航迹
+}
+
+PlotStates = {
+    0: 'Free',      # 自由点迹
+    1: 'Related',   # 相关点迹
+    2: 'Isolated'  # 孤立点迹(不相关点迹): 可以判定为背景噪声(杂波)
 }
 
 

@@ -171,6 +171,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             track_init_method=0,
                             σ_s=250, λ=3):
     """
+    TODO: 点迹状态(plot state)记录与更新
     :param plots_per_cycle:
     :param cycle_time:
     :param track_init_method:
@@ -235,6 +236,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
             for track in tracks:
                 # print('Processing track {:d}.'.format(track.id_))
                 if track.id_ in terminate_list:
+                    track.state_ = 4  # 'Terminated'
                     continue
 
                 # 构建预测点迹对象: 跟last_cycle的plot保持一致
