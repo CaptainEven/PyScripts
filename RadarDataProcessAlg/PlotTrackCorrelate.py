@@ -231,7 +231,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
             # -----计算马氏距离代价矩阵
             N = cycle_plots.shape[0]
-            cost_mat = np.zeros((M, N), dtype=np.float32)
+            cost_mat = np.zeros((M, N), dtype=np.float32)  # 用于点-航匹配
 
             for track in tracks:
                 # print('Processing track {:d}.'.format(track.id_))
