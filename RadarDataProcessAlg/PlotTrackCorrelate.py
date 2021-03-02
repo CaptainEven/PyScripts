@@ -5,8 +5,11 @@ import math
 import numpy as np
 import matplotlib.pyplot as plt
 from random import sample
+from tqdm import tqdm
+from collections import defaultdict, OrderedDict
 
-from TrackInit import extrapolate_plot, Track, Plot, relate_gate_check
+from TrackInit import markers, colors
+from TrackInit import extrapolate_plot, Track, Plot, PlotStates, relate_gate_check
 from TrackInit import direct_method_with_bkg, logic_method_with_bkg, corrected_logic_method_with_bkg
 
 
@@ -166,6 +169,139 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
     return ma_dist
 
 
+## ---------- visualization
+def draw_plot_track_correspondence(plots_per_cycle, tracks,
+                                   init_phase_plots_state_dict, correlate_phase_plots_state_dict):
+    """
+    可视化点迹-行迹关联
+    :param plots_per_cycle:
+    :param tracks:
+    :param init_phase_plots_state_dict:
+    :param correlate_phase_plots_state_dict:
+    :return:
+    """
+    # ---------- 数据汇总
+    track_init_cycle = max([track.init_cycle_ for track in tracks])
+
+    ## 按照cycle升序排序
+    # init_phase_plots_state_dict = sorted(init_phase_plots_state_dict.items(),
+    #                                      key=lambda x: x[0], reverse=False)
+    # correlate_phase_plots_state_dict = sorted(correlate_phase_plots_state_dict.items(),
+    #                                           key=lambda x: x[0], reverse=False)
+
+    # 将两个阶段的plot对象信息字典合并
+    plots_state_dict = defaultdict(list)
+    for (k, v) in init_phase_plots_state_dict.items():
+        plots_state_dict[k].extend(v)
+    for (k, v) in correlate_phase_plots_state_dict.items():
+        plots_state_dict[k].extend(correlate_phase_plots_state_dict[k])
+    # print(plots_state_dict)
+
+    plots_state_dict = sorted(plots_state_dict.items(), key=lambda x: x[0], reverse=False)
+    # for cycle, (plots, (c_id, states)) in enumerate(zip(plots_per_cycle, plots_state_dict)):
+    #     assert plots.shape[0] == len(states)
+    #     flags = [True for x in plots.tolist() if x in [[plot.x_, plot.y_] for plot in states]]
+    #     if False in flags:
+    #         print(flags)
+
+    # ---------- 绘图
+    n_tracks = len(tracks)
+    n_sample = n_tracks + len(PlotStates)
+
+    colors_noise = sample(colors[3:], len(PlotStates))
+    markers_noise = sample(markers[:3], len(PlotStates))
+
+    colors_track = sample(colors[:3], n_tracks)
+    markers_track = sample(markers[3:7], n_tracks)
+
+    # 绘制基础地图(极坐标系)
+    fig = plt.figure(figsize=[16, 8])
+    fig.suptitle('Radar')
+
+    ax0 = plt.subplot(121, projection="polar")
+    ax0.set_theta_zero_location('E')
+    ax0.set_theta_direction(1)  # anti-clockwise
+    ax0.set_rmin(10)
+    ax0.set_rmax(100000)
+    ax0.set_rticks(np.arange(-50000, 50000, 3000))
+    ax0.set_title('polar')
+
+    ax1 = plt.subplot(122)
+    ax1.set_xticks(np.arange(-50000, 50000, 10000))
+    ax1.set_yticks(np.arange(-50000, 50000, 10000))
+    ax1.set_title('cartesian')
+
+    legended = False
+    for cycle, plots_state in tqdm(plots_state_dict):
+        for k, plot_obj in enumerate(plots_state):
+            if plot_obj.state_ == 0:  # 自由点迹(噪声)
+                state = PlotStates[0]
+                marker = markers_noise[0]
+                color = colors_noise[0]
+                label = '$Free plot(noise)$'
+            elif plot_obj.state_ == 1:  # 相关点迹
+                state = PlotStates[1]
+                marker = markers_track[plot_obj.correlated_track_id_]
+                color = colors_track[plot_obj.correlated_track_id_]
+                label = '$Track{:d}$'.format(plot_obj.correlated_track_id_)
+            elif plot_obj.state_ == 2:  # 孤立点迹(噪声)
+                state = PlotStates[2]
+                marker = markers_noise[1]
+                color = colors_noise[1]
+                label = '$Isolated plot(noise)$'
+
+            # 笛卡尔坐标
+            x, y = plot_obj.x_, plot_obj.y_
+
+            # 计算极径
+            r = np.sqrt(x * x + y * y)
+
+            # 计算极角
+            theta = np.arctan2(y, x)
+            theta = theta if theta >= 0.0 else theta + np.pi * 2.0
+
+            # 绘制极坐标点迹
+            if not legended:
+                ax0.scatter(theta, r, c=color, marker=marker, label=label)
+            else:
+                ax0.scatter(theta, r, c=color, marker=marker)
+            if state == 'Related' and cycle == track_init_cycle:
+                txt = 'Track' + str(plot_obj.correlated_track_id_)
+                ax0.text(theta, r, txt)
+            if state == 'Related':
+                if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                    ax0.text(theta, r, str(cycle + 1))
+            elif state == 'Free' or state == 'Isolated':
+                ax0.text(theta, r, str(cycle + 1))
+
+            # 绘制笛卡尔坐标
+            if not legended:
+                ax1.scatter(x, y, c=color, marker=marker, label=label)
+            else:
+                ax1.scatter(x, y, c=color, marker=marker)
+            if state == 'Related' and cycle == track_init_cycle:
+                txt = 'Track' + str(plot_obj.correlated_track_id_)
+                ax1.text(x, y, txt)
+            if state == 'Related':
+                if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                    ax1.text(x, y, str(cycle + 1))
+            elif state == 'Free' or state == 'Isolated':
+                ax1.text(x, y, str(cycle + 1))
+            
+            plt.pause(0.5)
+
+        if cycle == track_init_cycle and not legended:
+            plt.legend(loc="upper left")
+            legended = True
+
+        # print('Cycle {:d} done.'.format(cycle + 1))
+
+    # plt.legend(loc="upper left")
+    plt.show()
+
+
+# ----------
+
 ## 最近邻(NN)点-航相关算法
 def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             track_init_method=0,
@@ -216,22 +352,53 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
         #     plots = [[x, y] for x, y in zip(xs, ys)]
         #     plot_plots(plots, cycles)
 
+        # ----------  构建航迹起始阶段的点迹信息字典
+        init_phase_plots_state_dict = defaultdict(list)
+        last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
+        for track in tracks:
+            for plot in track.plots_:
+                init_phase_plots_state_dict[plot.cycle_].append(plot)
+
+        for cycle, cycle_plots in enumerate(plots_per_cycle):
+            if cycle > last_cycle:
+                continue
+
+            # 构建已经注册的plot坐标
+            registered_plots_ = [[plot.x_, plot.y_] for track in tracks
+                                 for plot in track.plots_ if plot.cycle_ == cycle]
+
+            # 遍历当前周期的所有点迹
+            for plot in cycle_plots:
+                if plot.tolist() not in registered_plots_:
+                    plot_obj = Plot(cycle, plot[0], plot[1], -1, -1, -1)
+                    plot_obj.state_ = 0  # '自由点迹'
+                    plot_obj.correlated_track_id_ = -1
+
+                    init_phase_plots_state_dict[cycle].append(plot_obj)
+
         # ---------- 航迹起始成功后, 点航相关过程
         # 获取下一个扫描cycle编号
         last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
         start_cycle = last_cycle + 1
         print('Start correlation from cycle {:d}...'.format(start_cycle))
+        for track in tracks:
+            track.start_correlate_cycle_ = start_cycle
 
         # ---------- 主循环: 遍历接下来的所有cycles
         terminate_list = []
+        correlate_phase_plots_state_dict = OrderedDict()
+
         for i in range(start_cycle, n_cycles):
             # 遍历下次扫描出现的所有点迹
             cycle_plots = plots_per_cycle[i]
             # print(cycle_plots)
 
+            # 构建当前cycle的plot对象
+            cycle_plot_objs = []
+
             # -----计算马氏距离代价矩阵
             N = cycle_plots.shape[0]
-            cost_mat = np.zeros((M, N), dtype=np.float32)  # 用于点-航匹配
+            # cost_mat = np.zeros((M, N), dtype=np.float32)  # 用于点-航匹配
 
             for track in tracks:
                 # print('Processing track {:d}.'.format(track.id_))
@@ -298,12 +465,46 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                         # 点迹-航迹直接相关
                         track.add_plot(obs_plot_obj)
 
+                        # 更新点迹属性
+                        obs_plot_obj.state_ = 1  # 'Related'
+                        obs_plot_obj.correlated_track_id_ = track.id_
+
+                    else:
+                        # 更新点迹属性
+                        obs_plot_obj.state_ = 2  # 'Isolated'
+                        obs_plot_obj.correlated_track_id_ = -1
+
+                    # 添加当前cycle的点迹对象
+                    cycle_plot_objs.append(obs_plot_obj)
+
                 elif len(can_plot_objs) > 1:
                     # NN点航关联
                     min_ma_dist = min(ma_dists)
                     min_idx = ma_dists.index(min_ma_dist)
                     obs_plot_obj = can_plot_objs[min_idx]
                     track.add_plot(obs_plot_obj)
+
+                    # 更新点迹属性
+                    obs_plot_obj.state_ = 1  # 'Related'
+                    obs_plot_obj.correlated_track_id_ = track.id_
+
+                    # 添加当前cycle的点迹对象
+                    cycle_plot_objs.append(obs_plot_obj)
+
+            # ---------- 处理剩余的点迹
+            registered_plots_ = [[plot_obj.x_, plot_obj.y_] for plot_obj in cycle_plot_objs]
+            # print(registered_plots_)
+            for plot in cycle_plots:
+                if plot.tolist() not in registered_plots_:
+                    plot_obj = Plot(start_cycle, plot[0], plot[1], -1, -1, -1)
+                    plot_obj.state_ = 0  # '自由点迹'
+                    plot_obj.correlated_track_id_ = -1
+
+                    cycle_plot_objs.append(plot_obj)
+
+            # 注册点-航关联信息
+            correlate_phase_plots_state_dict[i] = cycle_plot_objs
+
             # ----------
 
             # logging
@@ -311,7 +512,10 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                 print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i))
             print('Cycle {:d} correlation done.\n'.format(i))
 
-        # ---------- TODO:对完成所有cycle点迹-航迹关联的航迹进行动态可视化
+        # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
+        print('Start visualization...')
+        draw_plot_track_correspondence(plots_per_cycle, tracks,
+                                       init_phase_plots_state_dict, correlate_phase_plots_state_dict)
 
     else:
         print('Track initialization failed.')

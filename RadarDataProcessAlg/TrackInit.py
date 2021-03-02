@@ -14,13 +14,13 @@ from scipy.optimize import linear_sum_assignment as linear_assignment
 markers = [
     '.',
     '+',
+    '*',
+    's',
     '^',
     'v',
     '>',
     '<',
-    's',
     'p',
-    '*',
     'h',
     'H',
     'd',
@@ -49,14 +49,14 @@ colors = [
 TrackStates = {
     0: 'Potential',  # 可能航迹
     1: 'Temporaty',  # 暂时航迹
-    2: 'Reliable',   # 可靠航迹
-    3: 'Fixed',      # 固定航迹
+    2: 'Reliable',  # 可靠航迹
+    3: 'Fixed',  # 固定航迹
     4: 'Terminated'  # 撤销航迹
 }
 
 PlotStates = {
-    0: 'Free',      # 自由点迹
-    1: 'Related',   # 相关点迹
+    0: 'Free',  # 自由点迹
+    1: 'Related',  # 相关点迹
     2: 'Isolated'  # 孤立点迹(不相关点迹): 可以判定为背景噪声(杂波)
 }
 
@@ -78,6 +78,19 @@ class Plot(object):
         self.v_ = v
         self.a_ = a
         self.heading_ = heading
+
+        # 点迹类型: 初始化为'自由'点迹
+        self.state_ = 0
+
+        # 点迹关联的track id
+        self.correlated_track_id_ = -1
+
+    def set_state(self, state):
+        """
+        :param state:
+        :return:
+        """
+        self.state_ = state
 
     def __sub__(self, plot):
         """
@@ -101,10 +114,11 @@ class Plot(object):
 class Track(object):
     def __init__(self):
         self.id_ = -1
-        self.state_ = 0                # 航迹状态
+        self.state_ = 0  # 航迹状态
         self.plots_ = []
-        self.init_cycle_ = -1
-        self.quality_counter_ = 0       # 航迹质量值
+        self.init_cycle_ = -1  # 成功起始的cycle
+        self.start_correlate_cycle_ = -1  # 开始点-航关联的cycle
+        self.quality_counter_ = 0  # 航迹质量值
 
     def add_plot(self, plot):
         assert isinstance(plot, Plot)
@@ -274,14 +288,15 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
         direction = np.random.rand() * 360
 
         # ---------- 生成一条航迹
-        track = gen_track_cv_ca(N=N, v0=v0, a=a, direction=direction, cycle_time=1)
+        track = gen_track_cv_ca(
+            N=N, v0=v0, a=a, direction=direction, cycle_time=1)
         # ----------
 
         tracks.append(track)
         # print(track, '\n')
     tracks = np.array(tracks)
 
-    # 为生成的航迹添加随机背景杂波
+    # ---------- 为生成的航迹添加随机背景杂波
     plots_in_each_cycle = []
     max_noise_num = 10
     for i in range(N):  # 遍历每一个雷达扫描周期
@@ -309,6 +324,7 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
             plots_in_each_cycle.append(plots)
     plots_in_each_cycle = np.array(plots_in_each_cycle)
     print(plots_in_each_cycle)
+    # ----------
 
     # ---------- 序列化航迹数据到磁盘
     # tracks = np.array(tracks)
@@ -346,7 +362,8 @@ def slide_window(track, n=4, start_cycle=1, skip_cycle=2):
     :param skip_cycle:
     :return:
     """
-    window = [track[i] for i in range(start_cycle - skip_cycle, start_cycle + n)]
+    window = [track[i]
+              for i in range(start_cycle - skip_cycle, start_cycle + n)]
 
     return window
 
@@ -518,7 +535,8 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
             assert len(cycle_ids) == len(plot_ids)
 
-            plots = [window[cycle][plot_id] for cycle, plot_id in zip(cycle_ids, plot_ids)]
+            plots = [window[cycle][plot_id]
+                     for cycle, plot_id in zip(cycle_ids, plot_ids)]
 
             # 可视化验证
             # plot_plots(plots, cycle_ids)
@@ -583,19 +601,24 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
 
             # 判定是否当前航迹初始化成功
             if n_pass >= m:
-                print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+                print(
+                    'Track {:d} inited successfully @cycle {:d}.'.format(k, i))
 
                 # -----初始化航迹对象
                 track = Track()
-                track.id_ = track_cnt        # 航迹编号
-                track.state_ = 2             # 航迹状态: 可靠航迹
-                track.init_cycle_ = i        # 航迹起始cycle
-                window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
+                track.id_ = track_cnt  # 航迹编号
+                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.init_cycle_ = i  # 航迹起始cycle
+                window_states = sorted(window_states.items(
+                ), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
                 for k, v in window_states:
                     # print(k, v)
-                    plot = Plot(v['cycle'], v['x'], v['y'], v['v'], v['a'], v['angle_in_degrees'])
+                    plot = Plot(v['cycle'], v['x'], v['y'],
+                                v['v'], v['a'], v['angle_in_degrees'])
+                    plot.state_ = 1  # 'Related'
+                    plot.correlated_track_id_ = track.id_
                     track.add_plot(plot)
                     track.quality_counter_ += 1  # 航机质量得分更新
                 tracks.append(track)
@@ -935,7 +958,8 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
 
             assert len(cycle_ids) == len(plot_ids)
 
-            plots = [window[cycle][plot_id] for cycle, plot_id in zip(cycle_ids, plot_ids)]
+            plots = [window[cycle][plot_id]
+                     for cycle, plot_id in zip(cycle_ids, plot_ids)]
             # print(plots)
 
             # window内逐一门限测试
@@ -977,26 +1001,32 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
                         window_states[cycle_id] = state_dict
 
                     else:
-                        print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
+                        print(
+                            'Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
                 else:
                     print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
                           .format(i, j))
 
             # 判定是否当前航迹初始化成功
             if n_pass >= m:
-                print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+                print(
+                    'Track {:d} inited successfully @cycle {:d}.'.format(k, i))
 
                 # -----初始化航迹对象
                 track = Track()
-                track.id_ = track_cnt         # 航迹编号
-                track.state_ = 2              # 航迹状态: 可靠航迹
-                track.init_cycle_ = i         # 航迹起始cycle
-                window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
+                track.id_ = track_cnt  # 航迹编号
+                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.init_cycle_ = i  # 航迹起始cycle
+                window_states = sorted(window_states.items(
+                ), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
                 for k, v in window_states:
                     # print(k, v)
-                    plot = Plot(v['cycle'], v['x'], v['y'], v['v'], v['a'], v['angle_in_degrees'])
+                    plot = Plot(v['cycle'], v['x'], v['y'],
+                                v['v'], v['a'], v['angle_in_degrees'])
+                    plot.state_ = 1  # 'Related'
+                    plot.correlated_track_id_ = track.id_
                     track.add_plot(plot)
                     track.quality_counter_ += 1  # 航迹质量得分更新
                 tracks.append(track)
@@ -1067,7 +1097,8 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                         if relate_gate_check(cycle_time, v, window[j - 1], window[j], window[j + 1], sigma_s=sigma):
                             n_pass += 1
                         else:
-                            print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
+                            print(
+                                'Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
                     else:
                         print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
                               .format(i, j))
@@ -1168,7 +1199,8 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
 
             assert len(cycle_ids) == len(plot_ids)
 
-            plots = [window[cycle][plot_id] for cycle, plot_id in zip(cycle_ids, plot_ids)]
+            plots = [window[cycle][plot_id]
+                     for cycle, plot_id in zip(cycle_ids, plot_ids)]
             # print(plots)
 
             # window内逐一门限测试
@@ -1196,7 +1228,8 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                     # 相关(跟踪)波门判定page71-72
 
                     is_pass, ret = corrected_relate_gate_check(cycle_time, v,
-                                                               plots[l + 2], plots[l + 1], plots[l],
+                                                               plots[l + 2], plots[l +
+                                                                                   1], plots[l],
                                                                sigma_s, sigma_a)
                     if is_pass:
                         n_pass += 1
@@ -1216,11 +1249,11 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                         if ret == 2:
                             print(
                                 'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of shift sigma.'
-                                    .format(i, j))
+                                .format(i, j))
                         elif ret == 1:
                             print(
                                 'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of angle sigma.'
-                                    .format(i, j))
+                                .format(i, j))
 
                 else:
                     print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
@@ -1228,21 +1261,26 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
 
             # 判定是否当前航迹初始化成功
             if n_pass >= m:
-                print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+                print(
+                    'Track {:d} inited successfully @cycle {:d}.'.format(k, i))
 
                 # ----- 建立稳定航迹
                 track = Track()
-                track.id_ = track_cnt        # 航迹编号
-                track.state_ = 2             # 航迹状态: 可靠航迹
-                track.init_cycle_ = i        # 航迹起始cycle
-                window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
+                track.id_ = track_cnt  # 航迹编号
+                track.state_ = 2  # 航迹状态: 可靠航迹
+                track.init_cycle_ = i  # 航迹起始cycle
+                window_states = sorted(window_states.items(
+                ), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
                 for k, v in window_states:
                     # print(k, v)
-                    plot = Plot(v['cycle'], v['x'], v['y'], v['v'], v['a'], v['angle_in_degrees'])
+                    plot = Plot(v['cycle'], v['x'], v['y'],
+                                v['v'], v['a'], v['angle_in_degrees'])
+                    plot.state_ = 1  # 'Related'
+                    plot.correlated_track_id_ = track.id_
                     track.add_plot(plot)
-                    track.quality_counter_ += 1   # 航迹质量得分更新
+                    track.quality_counter_ += 1  # 航迹质量得分更新
                 tracks.append(track)
                 # -----
 
@@ -1314,7 +1352,8 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # page71-72
                         is_pass, ret = corrected_relate_gate_check(cycle_time, v,
-                                                                   window[j - 1], window[j], window[j + 1],
+                                                                   window[j -
+                                                                          1], window[j], window[j + 1],
                                                                    s_sigma, a_sigma)
                         if is_pass:
                             n_pass += 1
@@ -1322,11 +1361,11 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
                             if ret == 2:
                                 print(
                                     'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of shift sigma.'
-                                        .format(i, j))
+                                    .format(i, j))
                             elif ret == 1:
                                 print(
                                     'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of angle sigma.'
-                                        .format(i, j))
+                                    .format(i, j))
                     else:
                         print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
                               .format(i, j))
