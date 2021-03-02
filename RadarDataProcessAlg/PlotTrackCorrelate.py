@@ -264,58 +264,15 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
             theta = theta if theta >= 0.0 else theta + np.pi * 2.0
 
             # 绘制极坐标点迹
-            ax0.scatter(theta, r, c=color, marker=marker)
-
-            # if state == 'Free':
-            #     if not free_noise_legended:
-            #         ax0.scatter(theta, r, c=color, marker=marker, label=label)
-            #         free_noise_legended = True
-            #     else:
-            #         ax0.scatter(theta, r, c=color, marker=marker)
-            # elif state == 'Isolated':
-            #     if not isolated_noise_legended:
-            #         ax0.scatter(theta, r, c=color, marker=marker, label=label)
-            #         isolated_noise_legended = True
-            #     else:
-            #         ax0.scatter(theta, r, c=color, marker=marker)
-            # else:
-            #     if not related_legended:
-            #         ax0.scatter(theta, r, c=color, marker=marker, label=label)
-            #         related_legended = True
-            #     else:
-            #         ax0.scatter(theta, r, c=color, marker=marker)
-
-            # if state == 'Related' and cycle == track_init_cycle:
-            #     txt = 'Track' + str(plot_obj.correlated_track_id_)
-            #     ax0.text(theta, r, txt)
-
             if state == 'Related':
+                type0 = ax0.scatter(theta, r, c=color, marker=marker)
                 if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
                     ax0.text(theta, r, str(cycle + 1))
             elif state == 'Free' or state == 'Isolated':
+                type1 = ax0.scatter(theta, r, c=color, marker=marker)
                 ax0.text(theta, r, str(cycle + 1))
 
             # 绘制笛卡尔坐标
-            # if state == 'Free':
-            #     if not free_noise_legended:
-            #         ax1.scatter(x, y, c=color, marker=marker, label=label)
-            #         free_noise_legended = True
-            #     else:
-            #         ax1.scatter(x, y, c=color, marker=marker)
-            # elif state == 'Isolated':
-            #     if not isolated_noise_legended:
-            #         ax1.scatter(x, y, c=color, marker=marker, label=label)
-            #         isolated_noise_legended = True
-            #     else:
-            #         ax1.scatter(x, y, c=color, marker=marker)
-            # else:
-            #     if not related_legended:
-            #         ax1.scatter(x, y, c=color, marker=marker, label=label)
-            #         related_legended = True
-            #     else:
-            #         ax1.scatter(x, y, c=color, marker=marker)
-
-            # ax1.scatter(x, y, c=color, marker=marker, label=label)
             ax1.scatter(x, y, c=color, marker=marker)           
 
             if state == 'Related' and cycle == track_init_cycle:
@@ -331,7 +288,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
             plt.pause(0.1)
         
         if cycle == track_init_cycle:
-            plt.legend()
+            ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
         # print('Cycle {:d} done.'.format(cycle + 1))
 
     # plt.legend(loc="upper left")
@@ -343,7 +300,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
 ## 最近邻(NN)点-航相关算法
 def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             track_init_method=0,
-                            σ_s=250, λ=3):
+                            σ_s=500, λ=3):
     """
     TODO: 点迹状态(plot state)记录与更新
     :param plots_per_cycle:
