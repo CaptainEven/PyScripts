@@ -212,7 +212,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     markers_noise = sample(markers[:3], len(PlotStates))
 
     colors_track = sample(colors[:3], n_tracks)
-    markers_track = sample(markers[3:7], n_tracks)
+    markers_track = sample(markers[4:8], n_tracks)
 
     # 绘制基础地图(极坐标系)
     fig = plt.figure(figsize=[16, 8])
@@ -231,14 +231,17 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     ax1.set_yticks(np.arange(-50000, 50000, 10000))
     ax1.set_title('cartesian')
 
-    legended = False
+    free_noise_legended = False
+    isolated_noise_legended = False
+    related_legended = False
+    
     for cycle, plots_state in tqdm(plots_state_dict):
         for k, plot_obj in enumerate(plots_state):
             if plot_obj.state_ == 0:  # 自由点迹(噪声)
                 state = PlotStates[0]
                 marker = markers_noise[0]
                 color = colors_noise[0]
-                label = '$Free plot(noise)$'
+                label = '$FreePlot(noise)$'
             elif plot_obj.state_ == 1:  # 相关点迹
                 state = PlotStates[1]
                 marker = markers_track[plot_obj.correlated_track_id_]
@@ -248,7 +251,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
                 state = PlotStates[2]
                 marker = markers_noise[1]
                 color = colors_noise[1]
-                label = '$Isolated plot(noise)$'
+                label = '$IsolatedPlot(noise)$'
 
             # 笛卡尔坐标
             x, y = plot_obj.x_, plot_obj.y_
@@ -261,13 +264,31 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
             theta = theta if theta >= 0.0 else theta + np.pi * 2.0
 
             # 绘制极坐标点迹
-            if not legended:
-                ax0.scatter(theta, r, c=color, marker=marker, label=label)
-            else:
-                ax0.scatter(theta, r, c=color, marker=marker)
-            if state == 'Related' and cycle == track_init_cycle:
-                txt = 'Track' + str(plot_obj.correlated_track_id_)
-                ax0.text(theta, r, txt)
+            ax0.scatter(theta, r, c=color, marker=marker)
+
+            # if state == 'Free':
+            #     if not free_noise_legended:
+            #         ax0.scatter(theta, r, c=color, marker=marker, label=label)
+            #         free_noise_legended = True
+            #     else:
+            #         ax0.scatter(theta, r, c=color, marker=marker)
+            # elif state == 'Isolated':
+            #     if not isolated_noise_legended:
+            #         ax0.scatter(theta, r, c=color, marker=marker, label=label)
+            #         isolated_noise_legended = True
+            #     else:
+            #         ax0.scatter(theta, r, c=color, marker=marker)
+            # else:
+            #     if not related_legended:
+            #         ax0.scatter(theta, r, c=color, marker=marker, label=label)
+            #         related_legended = True
+            #     else:
+            #         ax0.scatter(theta, r, c=color, marker=marker)
+
+            # if state == 'Related' and cycle == track_init_cycle:
+            #     txt = 'Track' + str(plot_obj.correlated_track_id_)
+            #     ax0.text(theta, r, txt)
+
             if state == 'Related':
                 if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
                     ax0.text(theta, r, str(cycle + 1))
@@ -275,25 +296,42 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
                 ax0.text(theta, r, str(cycle + 1))
 
             # 绘制笛卡尔坐标
-            if not legended:
-                ax1.scatter(x, y, c=color, marker=marker, label=label)
-            else:
-                ax1.scatter(x, y, c=color, marker=marker)
+            # if state == 'Free':
+            #     if not free_noise_legended:
+            #         ax1.scatter(x, y, c=color, marker=marker, label=label)
+            #         free_noise_legended = True
+            #     else:
+            #         ax1.scatter(x, y, c=color, marker=marker)
+            # elif state == 'Isolated':
+            #     if not isolated_noise_legended:
+            #         ax1.scatter(x, y, c=color, marker=marker, label=label)
+            #         isolated_noise_legended = True
+            #     else:
+            #         ax1.scatter(x, y, c=color, marker=marker)
+            # else:
+            #     if not related_legended:
+            #         ax1.scatter(x, y, c=color, marker=marker, label=label)
+            #         related_legended = True
+            #     else:
+            #         ax1.scatter(x, y, c=color, marker=marker)
+
+            # ax1.scatter(x, y, c=color, marker=marker, label=label)
+            ax1.scatter(x, y, c=color, marker=marker)           
+
             if state == 'Related' and cycle == track_init_cycle:
                 txt = 'Track' + str(plot_obj.correlated_track_id_)
                 ax1.text(x, y, txt)
+
             if state == 'Related':
                 if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
                     ax1.text(x, y, str(cycle + 1))
             elif state == 'Free' or state == 'Isolated':
                 ax1.text(x, y, str(cycle + 1))
             
-            plt.pause(0.5)
-
-        if cycle == track_init_cycle and not legended:
-            plt.legend(loc="upper left")
-            legended = True
-
+            plt.pause(0.1)
+        
+        if cycle == track_init_cycle:
+            plt.legend()
         # print('Cycle {:d} done.'.format(cycle + 1))
 
     # plt.legend(loc="upper left")
