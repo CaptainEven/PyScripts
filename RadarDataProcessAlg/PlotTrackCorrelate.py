@@ -159,12 +159,12 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
     res_vector = can_plot_obj - plot_pred  # Plot类对'-'进行了重载
 
     if cov_mat.size == 1:  # 只有1个观测点迹落入相关(跟踪)波门
-        # 计算马氏距离
+        # 计算马氏距离: 此时是欧氏距离
         ma_dist = math.sqrt(res_vector.T.dot(res_vector))
 
     else:  # 5×5  有至少2个观测点迹落入相关(跟踪)波门
         # 计算马氏距离
-        ma_dist = math.sqrt(np.dot(res_vector.T, cov_mat).dot(res_vector))
+        ma_dist = math.sqrt(np.dot(res_vector.T, np.linalg.inv(cov_mat)).dot(res_vector))
 
     return ma_dist
 
