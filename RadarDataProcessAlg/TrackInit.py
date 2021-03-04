@@ -1,14 +1,13 @@
 # encoding=utf-8
 
-import os
 import math
-import heapq
-import numpy as np
-import matplotlib.pyplot as plt
-from random import sample
+import os
 from collections import defaultdict
+from random import sample
+
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.stats import poisson
-from scipy.optimize import linear_sum_assignment as linear_assignment
 
 # ---------- Parameters ----------
 markers = [
@@ -748,8 +747,11 @@ def start_gate_check(cycle_time, plot_pre, plot_cur, v0, min_ratio=0.1, max_rati
     return dist >= r_min and dist <= r_max
 
 
+# TODO: 匀加速外推
+
 def extrapolate_plot(plot_pre, plot_cur, s):
     """
+    匀速外推
     :param plot_pre: 前一个点迹
     :param plot_cur: 当前点迹
     :param s: 位移值
@@ -801,11 +803,11 @@ def extrapolate_plot(plot_pre, plot_cur, s):
 
 
 # 数据互联是通过相关波门实现的
-def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma_s):
+def relate_gate_check(cycle_time, v, a, plot_pre, plot_cur, plot_next, sigma_s):
     """
     Page46
     最简单的圆(环)形相关波门:
-    对每个暂时航迹进行外推，以外推点为中心，建立后续相关波门
+    对每个暂时航迹进行外推(匀速外推/匀加速外推)，以外推点为中心，建立后续相关波门
     :param cycle_time:
     :param v:
     :param plot_pre:
@@ -818,7 +820,8 @@ def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma_s):
     x_nex, y_nex = plot_next
 
     # 预测位移值
-    s = v * cycle_time
+    # s = v * cycle_time
+    s = v * cycle_time + 0.5 * a * cycle_time * cycle_time
 
     # 计算(直线)外推点
     x_extra, y_extra = extrapolate_plot(plot_pre, plot_cur, s)
@@ -832,10 +835,11 @@ def relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, sigma_s):
     return dist <= sigma_s
 
 
-def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_sigma, a_sigma):
+def corrected_relate_gate_check(cycle_time, v, a, plot_pre, plot_cur, plot_next, s_sigma, a_sigma):
     """
     :param cycle_time:
     :param v:
+    :param a: 加速度
     :param plot_pre:
     :param plot_cur:
     :param plot_next:
@@ -849,7 +853,8 @@ def corrected_relate_gate_check(cycle_time, v, plot_pre, plot_cur, plot_next, s_
     x_nex, y_nex = plot_next
 
     # 预测位移值
-    s = v * cycle_time
+    # s = v * cycle_time
+    s = v * cycle_time + 0.5 * a * cycle_time * cycle_time
 
     # 计算(直线)外推点
     x_extra, y_extra = extrapolate_plot(plot_pre, plot_cur, s)
@@ -986,7 +991,7 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
                 if start_gate_check(cycle_time, plots[l + 2], plots[l + 1], v0=340):
                     # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                     # 相关(跟踪)波门判定page71-72
-                    if relate_gate_check(cycle_time, v, plots[l + 2], plots[l + 1], plots[l], sigma_s=sigma_s):
+                    if relate_gate_check(cycle_time, v, a, plots[l + 2], plots[l + 1], plots[l], sigma_s=sigma_s):
                         n_pass += 1
 
                         # window运动状态记录
@@ -1064,21 +1069,21 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
 
     # 窗口滑动
     succeed = False
-    for i in range(1, N - n):
+    for i in range(2, N - n):
         # 取滑窗
         window = slide_window(track, n, start_cycle=i, skip_cycle=1)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 1:  # 从第2个点迹开始求v, a, angle
+            if j >= 2:  # 从第2个点迹开始求v, a, angle
                 # 获取连续3(或2)个点迹
-                # plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
-                plots_2 = window[j - 1: j + 1]  # 2 plots:[j-1, j]
+                plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
+                # plots_2 = window[j - 1: j + 1]  # 2 plots:[j-1, j]
 
                 # 估算当前点迹的运动状态
-                # v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
-                v = get_v(plots_2, cycle_time)
+                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                # v = get_v(plots_2, cycle_time)
 
                 # # 航向偏移角度估算
                 # angle_in_degrees = math.degrees(angle_in_radians)
@@ -1089,12 +1094,12 @@ def logic_method(track, cycle_time, sigma=160, m=3, n=4):
                 #       .format(i, v, a, angle_in_degrees))
 
                 # ----- 判定逻辑
-                if j >= 1 and j < len(window) - 1:  # 从第2次扫描开始逻辑判定: j==2的点迹作为航迹头
+                if j >= 2 and j < len(window) - 1:  # 从第2次扫描开始逻辑判定: j==2的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
                     if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # 相关(跟踪)波门判定page71-72
-                        if relate_gate_check(cycle_time, v, window[j - 1], window[j], window[j + 1], sigma_s=sigma):
+                        if relate_gate_check(cycle_time, v, a, window[j - 1], window[j], window[j + 1], sigma_s=sigma):
                             n_pass += 1
                         else:
                             print(
@@ -1227,9 +1232,8 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                     # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                     # 相关(跟踪)波门判定page71-72
 
-                    is_pass, ret = corrected_relate_gate_check(cycle_time, v,
-                                                               plots[l + 2], plots[l +
-                                                                                   1], plots[l],
+                    is_pass, ret = corrected_relate_gate_check(cycle_time, v, a,
+                                                               plots[l + 2], plots[l + 1], plots[l],
                                                                sigma_s, sigma_a)
                     if is_pass:
                         n_pass += 1
@@ -1249,11 +1253,11 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                         if ret == 2:
                             print(
                                 'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of shift sigma.'
-                                .format(i, j))
+                                    .format(i, j))
                         elif ret == 1:
                             print(
                                 'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of angle sigma.'
-                                .format(i, j))
+                                    .format(i, j))
 
                 else:
                     print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
@@ -1320,21 +1324,21 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
 
     # 窗口滑动
     succeed = False
-    for i in range(1, N - n):
+    for i in range(2, N - n):
         # 取滑窗
         window = slide_window(track, n, start_cycle=i, skip_cycle=1)
 
         # 判定
         n_pass = 0
         for j, plot in enumerate(window):
-            if j >= 1:  # 从第三个点迹开始求v, a, angle
+            if j >= 2:  # 从第三个点迹开始求v, a, angle
                 # 获取连续3个点迹
-                # plots_3 = window[j-2: j+1]  # 3 plots: [j-2, j-1, j]
-                plots_2 = window[j - 1: j + 1]  # 2 plots: [j-1, j]
+                plots_3 = window[j - 2: j + 1]  # 3 plots: [j-2, j-1, j]
+                # plots_2 = window[j - 1: j + 1]  # 2 plots: [j-1, j]
 
                 # # 估算当前点迹的运动状态
-                # v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
-                v = get_v(plots_2, cycle_time)
+                v, a, angle_in_radians = get_v_a_angle(plots_3, cycle_time)
+                # v = get_v(plots_2, cycle_time)
 
                 # # 航向偏移角度估算
                 # angle_in_degrees = math.degrees(angle_in_radians)
@@ -1345,15 +1349,14 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
                 #       .format(i, v, a, angle_in_degrees))
 
                 # ----- 判定逻辑
-                if j >= 1 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
+                if j >= 2 and j < len(window) - 1:  # 从第4次扫描开始逻辑判定: j==3的点迹作为航迹头
                     # 初始波门判定: j是当前判定序列的第二次扫描
                     if start_gate_check(cycle_time, window[j - 1], window[j], v0=340):
 
                         # --- 对通过初始波门判定的航迹建立暂时航迹, 继续判断相关波门
                         # page71-72
-                        is_pass, ret = corrected_relate_gate_check(cycle_time, v,
-                                                                   window[j -
-                                                                          1], window[j], window[j + 1],
+                        is_pass, ret = corrected_relate_gate_check(cycle_time, v, a,
+                                                                   window[j - 1], window[j], window[j + 1],
                                                                    s_sigma, a_sigma)
                         if is_pass:
                             n_pass += 1
@@ -1361,11 +1364,11 @@ def corrected_logic_method(track, cycle_time, s_sigma=160, a_sigma=10, m=3, n=4)
                             if ret == 2:
                                 print(
                                     'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of shift sigma.'
-                                    .format(i, j))
+                                        .format(i, j))
                             elif ret == 1:
                                 print(
                                     'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of angle sigma.'
-                                    .format(i, j))
+                                        .format(i, j))
                     else:
                         print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
                               .format(i, j))
