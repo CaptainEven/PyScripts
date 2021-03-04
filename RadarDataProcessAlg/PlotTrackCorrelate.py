@@ -285,7 +285,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
             elif state == 'Free' or state == 'Isolated':
                 ax1.text(x, y, str(cycle + 1))
             
-            plt.pause(0.1)
+            plt.pause(0.00001)
         
         if cycle == track_init_cycle:
             ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
