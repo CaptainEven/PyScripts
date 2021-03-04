@@ -219,7 +219,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     fig.suptitle('Radar')
 
     ax0 = plt.subplot(121, projection="polar")
-    ax0.set_theta_zero_location('E')
+    ax0.set_theta_zero_location('N')  # 'E', 'N'
     ax0.set_theta_direction(1)  # anti-clockwise
     ax0.set_rmin(10)
     ax0.set_rmax(100000)
