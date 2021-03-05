@@ -24,7 +24,8 @@ def get_predict_plot(track, cycle_time):
 
     # ----- 外推next cycle预测点迹
     # 提取前cycle和当前cycle的点迹
-    plot_pre = [plot for plot in track.plots_ if plot.cycle_ == last_cycle - 1][0]
+    plot_pre = [plot for plot in track.plots_ if plot.cycle_ ==
+                last_cycle - 1][0]
     plot_cur = [plot for plot in track.plots_ if plot.cycle_ == last_cycle][0]
 
     # 提取track在last_cycle的运动状态
@@ -38,7 +39,8 @@ def get_predict_plot(track, cycle_time):
     s = v * cycle_time
 
     # 计算(直线)外推点迹(预测点)笛卡尔坐标
-    x_extra, y_extra = extrapolate_plot([plot_pre.x_, plot_pre.y_], [plot_cur.x_, plot_cur.y_], s)
+    x_extra, y_extra = extrapolate_plot([plot_pre.x_, plot_pre.y_], [
+                                        plot_cur.x_, plot_cur.y_], s)
 
     # 构建预测点迹对象: 跟last_cycle的plot保持一致
     plot_pred = Plot(last_cycle + 1, x_extra, y_extra, v, a, heading)
@@ -108,7 +110,8 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
     last_cycle = max([plot.cycle_ for plot in track.plots_])
 
     # 提取前cycle和当前cycle的点迹
-    plot_pre = [plot for plot in track.plots_ if plot.cycle_ == last_cycle - 1][0]
+    plot_pre = [plot for plot in track.plots_ if plot.cycle_ ==
+                last_cycle - 1][0]
     plot_cur = [plot for plot in track.plots_ if plot.cycle_ == last_cycle][0]
 
     # ----- 计算落入相关波门的候选点迹: 基于相关(跟踪)波门滤波
@@ -126,8 +129,10 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
     for plot in candidate_plots:
         # ---估计观测点迹运动参数
         # 计算位移
-        shift1 = np.array([plot[0], plot[1]]) - np.array([plot_cur.x_, plot_cur.y_])
-        shift0 = np.array([plot_cur.x_, plot_cur.y_]) - np.array([plot_pre.x_, plot_pre.y_])
+        shift1 = np.array([plot[0], plot[1]]) - \
+            np.array([plot_cur.x_, plot_cur.y_])
+        shift0 = np.array([plot_cur.x_, plot_cur.y_]) - \
+            np.array([plot_pre.x_, plot_pre.y_])
 
         # 计算速度
         dist0 = np.linalg.norm(shift0, ord=2)
@@ -139,7 +144,8 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
         a = (v1 - v0) / cycle_time
 
         # 计算航向偏转角
-        heading = math.degrees(math.acos(np.dot(shift0, shift1) / (dist0 * dist1 + 1e-6)))
+        heading = math.degrees(
+            math.acos(np.dot(shift0, shift1) / (dist0 * dist1 + 1e-6)))
 
         # 构建plot object
         plot_obj = Plot(last_cycle + 1, plot[0], plot[1], v1, a, heading)
@@ -165,7 +171,8 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
 
     else:  # 5×5  有至少2个观测点迹落入相关(跟踪)波门
         # 计算马氏距离
-        ma_dist = math.sqrt(np.dot(res_vector.T, np.linalg.inv(cov_mat)).dot(res_vector))
+        ma_dist = math.sqrt(
+            np.dot(res_vector.T, np.linalg.inv(cov_mat)).dot(res_vector))
 
     return ma_dist
 
@@ -193,7 +200,8 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     # print(plots_state_dict)
 
     # 升序排列
-    plots_state_dict = sorted(plots_state_dict.items(), key=lambda x: x[0], reverse=False)
+    plots_state_dict = sorted(plots_state_dict.items(),
+                              key=lambda x: x[0], reverse=False)
 
     # ---------- 绘图
     n_tracks = len(tracks)
@@ -227,7 +235,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     free_noise_legended = False
     isolated_noise_legended = False
     related_legended = False
-    
+
     for cycle, plots_state in tqdm(plots_state_dict):
         for k, plot_obj in enumerate(plots_state):
             if plot_obj.state_ == 0:  # 自由点迹(噪声)
@@ -270,7 +278,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
                 ax0.text(theta, r, str(cycle + 1), fontsize=8)
 
             # 绘制笛卡尔坐标
-            ax1.scatter(x, y, c=color, marker=marker, s=5)           
+            ax1.scatter(x, y, c=color, marker=marker, s=5)
 
             if state == 'Related' and cycle == track_init_cycle:
                 txt = 'Track' + str(plot_obj.correlated_track_id_)
@@ -281,20 +289,25 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
                     ax1.text(x, y, str(cycle + 1), fontsize=8)
             elif state == 'Free' or state == 'Isolated':
                 ax1.text(x, y, str(cycle + 1), fontsize=8)
-            
-        plt.pause(0.00000001)
-        
+
+        plt.pause(1e-8)
+
         ## ----- 存放每一个cycle的图
         frame_f_path = './{:05d}.jpg'.format(cycle)
         plt.savefig(frame_f_path)
-        
+
         if cycle == track_init_cycle:
             ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
         # print('Cycle {:d} done.'.format(cycle + 1))
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     out_video_path = './output.mp4'
-    cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format('.', out_video_path)
+    cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+        .format('.', out_video_path)
+    os.system(cmd_str)
+
+    # 清空kpg文件
+    cmd_str = 'del *.jpg'
     os.system(cmd_str)
 
     out_gif_path = './output.gif'
@@ -324,13 +337,12 @@ def draw_slide_window(plots_f_path='./plots_in_each_cycle_1s.npy'):
 
     # 雷达扫描周期(s)
     cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
-    print('Radar scan cycle: {:d}s.',format(cycle_time))
-
+    print('Radar scan cycle: {:d}s.', format(cycle_time))
 
 
 ## ---------- Algorithm
 
-## 最近邻(NN)点-航相关算法
+# 最近邻(NN)点-航相关算法
 def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                             track_init_method=0,
                             σ_s=500, λ=3):
@@ -382,7 +394,8 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
         # ----------  构建航迹起始阶段的点迹信息字典
         init_phase_plots_state_dict = defaultdict(list)
-        last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
+        last_cycle = max(
+            [plot.cycle_ for track in tracks for plot in track.plots_])
         for track in tracks:
             for plot in track.plots_:
                 init_phase_plots_state_dict[plot.cycle_].append(plot)
@@ -406,7 +419,8 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
         # ---------- 航迹起始成功后, 点航相关过程
         # 获取下一个扫描cycle编号
-        last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
+        last_cycle = max(
+            [plot.cycle_ for track in tracks for plot in track.plots_])
         start_cycle = last_cycle + 1
         print('Start correlation from cycle {:d}...'.format(start_cycle))
         for track in tracks:
@@ -438,13 +452,16 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                 plot_pred = get_predict_plot(track, cycle_time)
 
                 # 计算候选观测点迹
-                can_plot_objs = get_candidate_plot_objs(cycle_time, track, plot_pred, cycle_plots, σ_s)
+                can_plot_objs = get_candidate_plot_objs(
+                    cycle_time, track, plot_pred, cycle_plots, σ_s)
                 if len(can_plot_objs) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
-                    print("Track {:d} has zero observation plots within it's relating gate.".format(track.id_))
+                    print("Track {:d} has zero observation plots within it's relating gate.".format(
+                        track.id_))
                     track.quality_counter_ -= 1
 
                     if track.quality_counter_ <= 0:
-                        print('Track {:d} is to be terminated.'.format(track.id_))
+                        print(
+                            'Track {:d} is to be terminated.'.format(track.id_))
                         terminate_list.append(track.id_)
 
                     continue
@@ -465,23 +482,27 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                     obs_plot_obj = can_plot_objs[0]
 
                     # 计算该点迹与其他航迹的距离
-                    other_tracks = [track_o for track_o in tracks if track_o.id_ != track.id_]
+                    other_tracks = [
+                        track_o for track_o in tracks if track_o.id_ != track.id_]
                     other_ma_dists = []
                     for track_o in other_tracks:  #
                         # 构建预测点迹对象: 跟last_cycle的plot保持一致
                         plot_pred_o = get_predict_plot(track_o, cycle_time)
 
                         # 计算候选观测点迹
-                        can_plot_objs_o = get_candidate_plot_objs(cycle_time, track_o, plot_pred_o, cycle_plots, σ_s)
+                        can_plot_objs_o = get_candidate_plot_objs(
+                            cycle_time, track_o, plot_pred_o, cycle_plots, σ_s)
 
                         if len(can_plot_objs_o) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
                             other_ma_dists.append(np.inf)
                         else:
                             # 计算残差的协方差矩阵
-                            cov_mat_o = compute_cov_mat(plot_pred_o, can_plot_objs_o)
+                            cov_mat_o = compute_cov_mat(
+                                plot_pred_o, can_plot_objs_o)
 
                             # --- 计算马氏距离
-                            ma_dist_o = compute_ma_dist(cov_mat_o, obs_plot_obj, plot_pred_o)
+                            ma_dist_o = compute_ma_dist(
+                                cov_mat_o, obs_plot_obj, plot_pred_o)
                             other_ma_dists.append(ma_dist_o)
 
                             # # 判断该点迹是否同时落入其他航迹
@@ -520,7 +541,8 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                     cycle_plot_objs.append(obs_plot_obj)
 
             # ---------- 处理剩余的点迹
-            registered_plots_ = [[plot_obj.x_, plot_obj.y_] for plot_obj in cycle_plot_objs]
+            registered_plots_ = [[plot_obj.x_, plot_obj.y_]
+                                 for plot_obj in cycle_plot_objs]
             # print(registered_plots_)
             for plot in cycle_plots:
                 if plot.tolist() not in registered_plots_:
@@ -538,7 +560,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
             # logging
             for track in tracks:
                 print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i))
-            print('Cycle {:d} correlation done.\n'.format(i))
+            print('Cycle {:d} correlation done.\n'.format(i + 1))
 
         # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
         print('Start visualization...')
@@ -570,7 +592,7 @@ def test_nn_plot_track_correlate(plots_f_path):
     cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
 
     # ---------- 点航相关
-    nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=2)
+    nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=1)
     # ----------
 
 

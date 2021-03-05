@@ -580,6 +580,32 @@ def direct_method_with_bkg(plots_per_cycle, cycle_time, v_min, v_max, a_max, ang
                     }
                     window_states[cycle_id] = state_dict
 
+                    ## ----- 记录window中最前面的两个点迹的运动状态
+                    if l == len(plots) - 2 - 1:
+                        print('Add plot for the first 2 plots in the window...')
+                        plots_2 = [plots[l + 1], plots[l]]
+                        v = get_v(plots_2, cycle_time)
+                        # window第1号点迹运动状态记录
+                        state_dict = {
+                            'cycle': cycle_id - 1,
+                            'x': plots[l + 1][0],
+                            'y': plots[l + 1][1],
+                            'v': v,
+                            'a': -1,
+                            'angle_in_degrees': -1
+                        }
+                        window_states[cycle_id - 1] = state_dict
+                        # window第0号点迹运动状态记录
+                        state_dict = {
+                            'cycle': cycle_id - 2,
+                            'x': plots[l + 2][0],
+                            'y': plots[l + 2][1],
+                            'v': -1,
+                            'a': -1,
+                            'angle_in_degrees': -1
+                        }
+                        window_states[cycle_id - 2] = state_dict
+
                 else:  # 记录航迹起始失败原因: logging
                     is_v_pass = v >= v_min and v <= v_max
                     is_a_pass = a <= a_max
@@ -1005,9 +1031,35 @@ def logic_method_with_bkg(plots_per_cycle, cycle_time, sigma_s=160, m=3, n=4):
                         }
                         window_states[cycle_id] = state_dict
 
+                        ## ----- 记录window中最前面的两个点迹的运动状态
+                        if l == len(plots) - 2 - 1:
+                            print('Add plot for the first 2 plots in the window...')
+                            plots_2 = [plots[l + 1], plots[l]]
+                            v = get_v(plots_2, cycle_time)
+
+                            # window第1号点迹运动状态记录
+                            state_dict = {
+                                'cycle': cycle_id - 1,
+                                'x': plots[l + 1][0],
+                                'y': plots[l + 1][1],
+                                'v': v,
+                                'a': -1,
+                                'angle_in_degrees': -1
+                            }
+                            window_states[cycle_id - 1] = state_dict
+
+                            # window第0号点迹运动状态记录
+                            state_dict = {
+                                'cycle': cycle_id - 2,
+                                'x': plots[l + 2][0],
+                                'y': plots[l + 2][1],
+                                'v': -1,
+                                'a': -1,
+                                'angle_in_degrees': -1
+                            }
+                            window_states[cycle_id - 2] = state_dict
                     else:
-                        print(
-                            'Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
+                        print('Track init failed @cycle{:d}, object(plot) is not in relating gate.'.format(i))
                 else:
                     print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
                           .format(i, j))
@@ -1249,14 +1301,41 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                         }
                         window_states[cycle_id] = state_dict
 
+                        ## ----- 记录window中最前面的两个点迹的运动状态
+                        if l == len(plots) - 2 - 1:
+                            print('Add plot for the first 2 plots in the window...')
+                            plots_2 = [plots[l + 1], plots[l]]
+                            v = get_v(plots_2, cycle_time)
+
+                            # window第1号点迹运动状态记录
+                            state_dict = {
+                                'cycle': cycle_id - 1,
+                                'x': plots[l + 1][0],
+                                'y': plots[l + 1][1],
+                                'v': v,
+                                'a': -1,
+                                'angle_in_degrees': -1
+                            }
+                            window_states[cycle_id - 1] = state_dict
+
+                            # window第0号点迹运动状态记录
+                            state_dict = {
+                                'cycle': cycle_id - 2,
+                                'x': plots[l + 2][0],
+                                'y': plots[l + 2][1],
+                                'v': -1,
+                                'a': -1,
+                                'angle_in_degrees': -1
+                            }
+                            window_states[cycle_id - 2] = state_dict
                     else:
                         if ret == 2:
-                            print(
-                                'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of shift sigma.'
+                            print('Track init failed @cycle{:d} @window{:d},' +
+                            ' corrected relating gate: out of shift sigma.'
                                     .format(i, j))
                         elif ret == 1:
-                            print(
-                                'Track init failed @cycle{:d} @window{:d}, corrected relating gate: out of angle sigma.'
+                            print('Track init failed @cycle{:d} @window{:d},'+
+                            ' corrected relating gate: out of angle sigma.'
                                     .format(i, j))
 
                 else:
@@ -1265,22 +1344,19 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
 
             # 判定是否当前航迹初始化成功
             if n_pass >= m:
-                print(
-                    'Track {:d} inited successfully @cycle {:d}.'.format(k, i))
+                print('Track {:d} inited successfully @cycle {:d}.'.format(k, i))
 
                 # ----- 建立稳定航迹
                 track = Track()
                 track.id_ = track_cnt  # 航迹编号
                 track.state_ = 2  # 航迹状态: 可靠航迹
                 track.init_cycle_ = i  # 航迹起始cycle
-                window_states = sorted(window_states.items(
-                ), key=lambda x: x[0], reverse=False)  # 升序重排
+                window_states = sorted(window_states.items(), key=lambda x: x[0], reverse=False)  # 升序重排
 
                 # 添加已初始化点迹
                 for k, v in window_states:
                     # print(k, v)
-                    plot = Plot(v['cycle'], v['x'], v['y'],
-                                v['v'], v['a'], v['angle_in_degrees'])
+                    plot = Plot(v['cycle'], v['x'], v['y'], v['v'], v['a'], v['angle_in_degrees'])
                     plot.state_ = 1  # 'Related'
                     plot.correlated_track_id_ = track.id_
                     track.add_plot(plot)
