@@ -347,6 +347,14 @@ def draw_slide_window(track, padding=150):
         :param track:
         :return:
         """
+        # 超参数设定
+        m, n = 4, 3
+        txt_padding = (padding // 10) + 5
+        v_min = 0.1 * 340
+        v_max = 2.5 * 340
+        a_max = 20
+        angle_max = 7
+
         plot_locs = [[plot.x_, plot.y_] for plot in track.plots_]
         plot_locs = np.array(plot_locs, dtype=np.float32)
 
@@ -368,11 +376,14 @@ def draw_slide_window(track, padding=150):
         # 滑窗过程
         win_size = 6
         for i in range(len(plot_locs) - win_size + 1):
+            # 取滑窗
             window = get_window(plot_locs, i, win_size)
             window = np.array(window, dtype=np.float32)
             # print(window)
             win_x = window[:, 0]
             win_y = window[:, 1]
+
+            ax1.set_title('Track initialization: direct method')
 
             # ---------- 处理左图
             # 计算窗口尺寸
@@ -391,12 +402,75 @@ def draw_slide_window(track, padding=150):
             ax0.add_patch(patch)
 
             # ---------- 处理右图
-            ax1.scatter(win_x, win_y, c='m', marker='>', s=20)
+            scatter = ax1.scatter(win_x, win_y, c='b', marker='>', s=25)
+
+            # 遍历窗口每隔点迹: 绘制运动状态(m/n滑窗判定)
+            n_pass = 0
+            for j in range(2, len(window)):
+                idx = i + j
+                plot_obj = track.plots_[idx]
+                # print(plot_obj)
+
+                # ----- 绘制运动信息
+                x_loc, y_loc = plot_obj.x_, plot_obj.y_
+                veloc = plot_obj.v_
+                acceleration = plot_obj.a_
+                heading_deflection = plot_obj.heading_
+
+                # 点迹运动状态
+                assert (x_loc == win_x[j] and y_loc == win_y[j])
+
+                txt_y_pos = y_loc - txt_padding
+                txt_x_pos = x_loc + txt_padding
+                ax1.text(txt_x_pos, txt_y_pos,
+                         str('pos: [{:d}, {:d}]'.format(int(x_loc), int(y_loc))),
+                         fontsize=10)
+                txt_y_pos -= txt_padding
+                ax1.text(txt_x_pos, txt_y_pos,
+                         str('v: {:.3f}m/s'.format(veloc)),
+                         fontsize=10)
+                txt_y_pos -= txt_padding
+                ax1.text(txt_x_pos, txt_y_pos,
+                         str('a: {:.3f}m/s²'.format(acceleration)),
+                         fontsize=10)
+                txt_y_pos -= txt_padding
+                ax1.text(txt_x_pos, txt_y_pos,
+                         str('h: {:.3f}°'.format(heading_deflection)),
+                         fontsize=10)
+
+                # 直接法判定
+                if veloc >= v_min and \
+                        veloc <= v_max and \
+                        acceleration <= a_max and \
+                        heading_deflection < angle_max:
+
+                        txt_y_pos -= txt_padding
+                        ax1.text(txt_x_pos, txt_y_pos,
+                         str('pass: True'),
+                         fontsize=10)
+
+                        n_pass += 1
+                else:
+                    txt_y_pos -= txt_padding
+                    ax1.text(txt_x_pos, txt_y_pos,
+                         str('pass: False'),
+                         fontsize=10)
+
+            if n_pass >= n:
+                ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) succeed.'
+                .format(n, m))
+            else:
+                ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) failed.'
+                .format(n, m))
+
+            # ----------  暂停: 动态显示
+            plt.pause(5)
 
             # ---------- 后处理
-            plt.pause(5.0)
             # patch.set_visible(False)
             patch.remove()
+            scatter.remove()
+            ax1.cla()
 
             # plt.ioff()
 
