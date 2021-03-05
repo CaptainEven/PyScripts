@@ -224,11 +224,13 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     ax0.set_rmin(10)
     ax0.set_rmax(100000)
     ax0.set_rticks(np.arange(-50000, 50000, 3000))
+    ax0.tick_params(labelsize=6)
     ax0.set_title('polar')
 
     ax1 = plt.subplot(122)
     ax1.set_xticks(np.arange(-50000, 50000, 10000))
     ax1.set_yticks(np.arange(-50000, 50000, 10000))
+    ax1.tick_params(labelsize=7)
     ax1.set_title('cartesian')
 
     free_noise_legended = False
@@ -265,27 +267,35 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
 
             # 绘制极坐标点迹
             if state == 'Related':
-                type0 = ax0.scatter(theta, r, c=color, marker=marker)
+                type0 = ax0.scatter(theta, r, c=color, marker=marker, s=5)
+                if cycle == track_init_cycle:
+                    txt = 'Track' + str(plot_obj.correlated_track_id_)
+                    ax0.text(theta, r, txt, fontsize=10)
+
                 if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
-                    ax0.text(theta, r, str(cycle + 1))
+                    ax0.text(theta, r, str(cycle + 1), fontsize=8)
             elif state == 'Free' or state == 'Isolated':
                 type1 = ax0.scatter(theta, r, c=color, marker=marker)
-                ax0.text(theta, r, str(cycle + 1))
+                ax0.text(theta, r, str(cycle + 1), fontsize=8)
 
             # 绘制笛卡尔坐标
-            ax1.scatter(x, y, c=color, marker=marker)           
+            ax1.scatter(x, y, c=color, marker=marker, s=5)           
 
             if state == 'Related' and cycle == track_init_cycle:
                 txt = 'Track' + str(plot_obj.correlated_track_id_)
-                ax1.text(x, y, txt)
+                ax1.text(x, y, txt, fontsize=10)
 
             if state == 'Related':
                 if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
-                    ax1.text(x, y, str(cycle + 1))
+                    ax1.text(x, y, str(cycle + 1), fontsize=8)
             elif state == 'Free' or state == 'Isolated':
-                ax1.text(x, y, str(cycle + 1))
+                ax1.text(x, y, str(cycle + 1), fontsize=8)
             
-            plt.pause(0.00001)
+            plt.pause(0.000001)
+        
+        ## ----- 存放每一个cycle的图
+        frame_f_path = './cycle_{:2d}.png'.format(cycle)
+        plt.savefig(frame_f_path)
         
         if cycle == track_init_cycle:
             ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
@@ -294,8 +304,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     # plt.legend(loc="upper left")
     plt.show()
 
-
-# ----------
+## ---------- Algorithm
 
 ## 最近邻(NN)点-航相关算法
 def nn_plot_track_correlate(plots_per_cycle, cycle_time,
