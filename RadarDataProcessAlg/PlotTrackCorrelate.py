@@ -308,7 +308,7 @@ def draw_plot_track_correspondence(plots_per_cycle,
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图
-    draw_correlation(is_save=False)
+    # draw_correlation(is_save=False)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
@@ -328,15 +328,82 @@ def draw_plot_track_correspondence(plots_per_cycle,
 
     # plt.show()
 
+    ## 分步骤绘制算法过程
+    draw_slide_window(track=tracks[0])
 
-def draw_slide_window(track):
+
+def draw_slide_window(track, padding=150):
     """
     先不考虑噪声
     :param track:
     :return:
     """
-    plot_locs = [[plot.x_, plot.y_] for plot in track.plots_]
-    print(plot_locs)
+
+    def get_window(arr, start, win_size):
+        return arr[start: start + win_size]
+
+    def draw_track(track):
+        """
+        :param track:
+        :return:
+        """
+        plot_locs = [[plot.x_, plot.y_] for plot in track.plots_]
+        plot_locs = np.array(plot_locs, dtype=np.float32)
+
+        ## ---------- plotting
+        fig = plt.figure(figsize=[16, 8])
+        fig.suptitle('Radar cartesian coordinate system')
+        ax0 = plt.subplot(121)
+        ax1 = plt.subplot(122)
+        ax0.set_title('Sliding Window')
+        ax1.set_title('Track initialization: direct method')
+
+        x, y = plot_locs[:, 0], plot_locs[:, 1]
+        ax0.scatter(x, y, c='b', marker='>', s=5)
+        # plt.show()
+
+        # 开启交互模式
+        # plt.ion()
+
+        # 滑窗过程
+        win_size = 6
+        for i in range(len(plot_locs) - win_size + 1):
+            window = get_window(plot_locs, i, win_size)
+            window = np.array(window, dtype=np.float32)
+            # print(window)
+            win_x = window[:, 0]
+            win_y = window[:, 1]
+
+            # ---------- 处理左图
+            # 计算窗口尺寸
+            x_min = min(win_x) - padding
+            x_max = max(win_x) + padding
+            y_min = min(win_y) - padding
+            y_max = max(win_y) + padding
+            # x_center, y_center = int((x_min + x_max) * 0.5), int((y_min + y_max) * 0.5)
+
+            patch = plt.Rectangle(xy=(x_min, y_min),
+                                  width=x_max - x_min,
+                                  height=y_max - y_min,
+                                  edgecolor='y',
+                                  fill=False,
+                                  linewidth=2)
+            ax0.add_patch(patch)
+
+            # ---------- 处理右图
+            ax1.scatter(win_x, win_y, c='m', marker='>', s=20)
+
+            # ---------- 后处理
+            plt.pause(5.0)
+            # patch.set_visible(False)
+            patch.remove()
+
+            # plt.ioff()
+
+        # plt.show()
+
+    # print(plot_locs)
+    draw_track(track)
 
 
 ## ---------- Algorithm
@@ -581,7 +648,7 @@ def test_nn_plot_track_correlate(plots_f_path):
     cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
 
     # ---------- 点航相关
-    nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=1)
+    nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=2)
     # ----------
 
 

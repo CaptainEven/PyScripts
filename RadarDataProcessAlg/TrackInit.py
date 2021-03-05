@@ -1331,12 +1331,12 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                     else:
                         if ret == 2:
                             print('Track init failed @cycle{:d} @window{:d},' +
-                            ' corrected relating gate: out of shift sigma.'
-                                    .format(i, j))
+                                  ' corrected relating gate: out of shift sigma.'
+                                  .format(i, j))
                         elif ret == 1:
-                            print('Track init failed @cycle{:d} @window{:d},'+
-                            ' corrected relating gate: out of angle sigma.'
-                                    .format(i, j))
+                            print('Track init failed @cycle{:d} @window{:d},' +
+                                  ' corrected relating gate: out of angle sigma.'
+                                  .format(i, j))
 
                 else:
                     print('Track init failed @cycle{:d} @window{:d}, object(plot) is not in the starting gate.'
