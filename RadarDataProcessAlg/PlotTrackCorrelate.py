@@ -184,12 +184,6 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     # ---------- 数据汇总
     track_init_cycle = max([track.init_cycle_ for track in tracks])
 
-    ## 按照cycle升序排序
-    # init_phase_plots_state_dict = sorted(init_phase_plots_state_dict.items(),
-    #                                      key=lambda x: x[0], reverse=False)
-    # correlate_phase_plots_state_dict = sorted(correlate_phase_plots_state_dict.items(),
-    #                                           key=lambda x: x[0], reverse=False)
-
     # 将两个阶段的plot对象信息字典合并
     plots_state_dict = defaultdict(list)
     for (k, v) in init_phase_plots_state_dict.items():
@@ -198,12 +192,8 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
         plots_state_dict[k].extend(correlate_phase_plots_state_dict[k])
     # print(plots_state_dict)
 
+    # 升序排列
     plots_state_dict = sorted(plots_state_dict.items(), key=lambda x: x[0], reverse=False)
-    # for cycle, (plots, (c_id, states)) in enumerate(zip(plots_per_cycle, plots_state_dict)):
-    #     assert plots.shape[0] == len(states)
-    #     flags = [True for x in plots.tolist() if x in [[plot.x_, plot.y_] for plot in states]]
-    #     if False in flags:
-    #         print(flags)
 
     # ---------- 绘图
     n_tracks = len(tracks)
@@ -316,6 +306,7 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
 
 def draw_slide_window(plots_f_path='./plots_in_each_cycle_1s.npy'):
     """
+    先不考虑噪声
     :param plots_f_path:
     :return:
     """
