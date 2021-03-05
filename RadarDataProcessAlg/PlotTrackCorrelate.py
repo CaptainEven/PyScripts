@@ -1,17 +1,18 @@
 # encoding=utf-8
 
-import os
 import math
-import numpy as np
-import matplotlib.pyplot as plt
-from random import sample
-from tqdm import tqdm
+import os
 from collections import defaultdict, OrderedDict
+from random import sample
+
+import matplotlib.pyplot as plt
+import numpy as np
+from tqdm import tqdm
 
 from Mp4ToGif import Video2GifConverter
-from TrackInit import markers, colors
-from TrackInit import extrapolate_plot, Track, Plot, PlotStates, relate_gate_check
 from TrackInit import direct_method_with_bkg, logic_method_with_bkg, corrected_logic_method_with_bkg
+from TrackInit import extrapolate_plot, Plot, PlotStates
+from TrackInit import markers, colors
 
 
 def get_predict_plot(track, cycle_time):
@@ -40,7 +41,7 @@ def get_predict_plot(track, cycle_time):
 
     # 计算(直线)外推点迹(预测点)笛卡尔坐标
     x_extra, y_extra = extrapolate_plot([plot_pre.x_, plot_pre.y_], [
-                                        plot_cur.x_, plot_cur.y_], s)
+        plot_cur.x_, plot_cur.y_], s)
 
     # 构建预测点迹对象: 跟last_cycle的plot保持一致
     plot_pred = Plot(last_cycle + 1, x_extra, y_extra, v, a, heading)
@@ -130,9 +131,9 @@ def get_candidate_plot_objs(cycle_time, track, plot_pred, plots, σ_s):
         # ---估计观测点迹运动参数
         # 计算位移
         shift1 = np.array([plot[0], plot[1]]) - \
-            np.array([plot_cur.x_, plot_cur.y_])
+                 np.array([plot_cur.x_, plot_cur.y_])
         shift0 = np.array([plot_cur.x_, plot_cur.y_]) - \
-            np.array([plot_pre.x_, plot_pre.y_])
+                 np.array([plot_pre.x_, plot_pre.y_])
 
         # 计算速度
         dist0 = np.linalg.norm(shift0, ord=2)
@@ -178,14 +179,18 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
 
 
 ## ---------- visualization
-def draw_plot_track_correspondence(plots_per_cycle, tracks,
-                                   init_phase_plots_state_dict, correlate_phase_plots_state_dict):
+def draw_plot_track_correspondence(plots_per_cycle,
+                                   tracks,
+                                   init_phase_plots_state_dict,
+                                   correlate_phase_plots_state_dict,
+                                   is_convert=False):
     """
     可视化点迹-行迹关联
     :param plots_per_cycle:
     :param tracks:
     :param init_phase_plots_state_dict:
     :param correlate_phase_plots_state_dict:
+    :param is_convert:
     :return:
     """
     # ---------- 数据汇总
@@ -203,141 +208,135 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
     plots_state_dict = sorted(plots_state_dict.items(),
                               key=lambda x: x[0], reverse=False)
 
-    # ---------- 绘图
-    n_tracks = len(tracks)
-    n_sample = n_tracks + len(PlotStates)
+    def draw_correlation(is_save=True):
+        # ---------- 绘图
+        n_tracks = len(tracks)
+        n_sample = n_tracks + len(PlotStates)
 
-    colors_noise = sample(colors[3:], len(PlotStates))
-    markers_noise = sample(markers[:3], len(PlotStates))
+        colors_noise = sample(colors[3:], len(PlotStates))
+        markers_noise = sample(markers[:3], len(PlotStates))
 
-    colors_track = sample(colors[:3], n_tracks)
-    markers_track = sample(markers[4:8], n_tracks)
+        colors_track = sample(colors[:3], n_tracks)
+        markers_track = sample(markers[4:8], n_tracks)
 
-    # 绘制基础地图(极坐标系)
-    fig = plt.figure(figsize=[16, 8])
-    fig.suptitle('Radar')
+        # 绘制基础地图(极坐标系)
+        fig = plt.figure(figsize=[16, 8])
+        fig.suptitle('Radar')
 
-    ax0 = plt.subplot(121, projection="polar")
-    ax0.set_theta_zero_location('N')  # 'E', 'N'
-    ax0.set_theta_direction(1)  # anti-clockwise
-    ax0.set_rmin(10)
-    ax0.set_rmax(100000)
-    ax0.set_rticks(np.arange(-50000, 50000, 3000))
-    ax0.tick_params(labelsize=6)
-    ax0.set_title('polar')
+        ax0 = plt.subplot(121, projection="polar")
+        ax0.set_theta_zero_location('N')  # 'E', 'N'
+        ax0.set_theta_direction(1)  # anti-clockwise
+        ax0.set_rmin(10)
+        ax0.set_rmax(100000)
+        ax0.set_rticks(np.arange(-50000, 50000, 3000))
+        ax0.tick_params(labelsize=6)
+        ax0.set_title('polar')
 
-    ax1 = plt.subplot(122)
-    ax1.set_xticks(np.arange(-50000, 50000, 10000))
-    ax1.set_yticks(np.arange(-50000, 50000, 10000))
-    ax1.tick_params(labelsize=7)
-    ax1.set_title('cartesian')
+        ax1 = plt.subplot(122)
+        ax1.set_xticks(np.arange(-50000, 50000, 10000))
+        ax1.set_yticks(np.arange(-50000, 50000, 10000))
+        ax1.tick_params(labelsize=7)
+        ax1.set_title('cartesian')
 
-    free_noise_legended = False
-    isolated_noise_legended = False
-    related_legended = False
+        free_noise_legended = False
+        isolated_noise_legended = False
+        related_legended = False
 
-    for cycle, plots_state in tqdm(plots_state_dict):
-        for k, plot_obj in enumerate(plots_state):
-            if plot_obj.state_ == 0:  # 自由点迹(噪声)
-                state = PlotStates[0]
-                marker = markers_noise[0]
-                color = colors_noise[0]
-                label = '$FreePlot(noise)$'
-            elif plot_obj.state_ == 1:  # 相关点迹
-                state = PlotStates[1]
-                marker = markers_track[plot_obj.correlated_track_id_]
-                color = colors_track[plot_obj.correlated_track_id_]
-                label = '$Track{:d}$'.format(plot_obj.correlated_track_id_)
-            elif plot_obj.state_ == 2:  # 孤立点迹(噪声)
-                state = PlotStates[2]
-                marker = markers_noise[1]
-                color = colors_noise[1]
-                label = '$IsolatedPlot(noise)$'
+        for cycle, plots_state in tqdm(plots_state_dict):
+            for k, plot_obj in enumerate(plots_state):
+                if plot_obj.state_ == 0:  # 自由点迹(噪声)
+                    state = PlotStates[0]
+                    marker = markers_noise[0]
+                    color = colors_noise[0]
+                    label = '$FreePlot(noise)$'
+                elif plot_obj.state_ == 1:  # 相关点迹
+                    state = PlotStates[1]
+                    marker = markers_track[plot_obj.correlated_track_id_]
+                    color = colors_track[plot_obj.correlated_track_id_]
+                    label = '$Track{:d}$'.format(plot_obj.correlated_track_id_)
+                elif plot_obj.state_ == 2:  # 孤立点迹(噪声)
+                    state = PlotStates[2]
+                    marker = markers_noise[1]
+                    color = colors_noise[1]
+                    label = '$IsolatedPlot(noise)$'
 
-            # 笛卡尔坐标
-            x, y = plot_obj.x_, plot_obj.y_
+                # 笛卡尔坐标
+                x, y = plot_obj.x_, plot_obj.y_
 
-            # 计算极径
-            r = np.sqrt(x * x + y * y)
+                # 计算极径
+                r = np.sqrt(x * x + y * y)
 
-            # 计算极角
-            theta = np.arctan2(y, x)
-            theta = theta if theta >= 0.0 else theta + np.pi * 2.0
+                # 计算极角
+                theta = np.arctan2(y, x)
+                theta = theta if theta >= 0.0 else theta + np.pi * 2.0
 
-            # 绘制极坐标点迹
-            if state == 'Related':
-                type0 = ax0.scatter(theta, r, c=color, marker=marker, s=5)
-                if cycle == track_init_cycle:
-                    txt = 'Track' + str(plot_obj.correlated_track_id_)
-                    ax0.text(theta, r, txt, fontsize=10)
+                # 绘制极坐标点迹
+                if state == 'Related':
+                    type0 = ax0.scatter(theta, r, c=color, marker=marker, s=5)
+                    if cycle == track_init_cycle:
+                        txt = 'Track' + str(plot_obj.correlated_track_id_)
+                        ax0.text(theta, r, txt, fontsize=10)
 
-                if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                    if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                        ax0.text(theta, r, str(cycle + 1), fontsize=8)
+                elif state == 'Free' or state == 'Isolated':
+                    type1 = ax0.scatter(theta, r, c=color, marker=marker)
                     ax0.text(theta, r, str(cycle + 1), fontsize=8)
-            elif state == 'Free' or state == 'Isolated':
-                type1 = ax0.scatter(theta, r, c=color, marker=marker)
-                ax0.text(theta, r, str(cycle + 1), fontsize=8)
 
-            # 绘制笛卡尔坐标
-            ax1.scatter(x, y, c=color, marker=marker, s=5)
+                # 绘制笛卡尔坐标
+                ax1.scatter(x, y, c=color, marker=marker, s=5)
 
-            if state == 'Related' and cycle == track_init_cycle:
-                txt = 'Track' + str(plot_obj.correlated_track_id_)
-                ax1.text(x, y, txt, fontsize=10)
+                if state == 'Related' and cycle == track_init_cycle:
+                    txt = 'Track' + str(plot_obj.correlated_track_id_)
+                    ax1.text(x, y, txt, fontsize=10)
 
-            if state == 'Related':
-                if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                if state == 'Related':
+                    if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                        ax1.text(x, y, str(cycle + 1), fontsize=8)
+                elif state == 'Free' or state == 'Isolated':
                     ax1.text(x, y, str(cycle + 1), fontsize=8)
-            elif state == 'Free' or state == 'Isolated':
-                ax1.text(x, y, str(cycle + 1), fontsize=8)
 
-        plt.pause(1e-8)
+            plt.pause(1e-8)
 
-        ## ----- 存放每一个cycle的图
-        frame_f_path = './{:05d}.jpg'.format(cycle)
-        plt.savefig(frame_f_path)
+            ## ----- 存放每一个cycle的图
+            if is_save:
+                frame_f_path = './{:05d}.jpg'.format(cycle)
+                plt.savefig(frame_f_path)
 
-        if cycle == track_init_cycle:
-            ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
-        # print('Cycle {:d} done.'.format(cycle + 1))
+                if cycle == track_init_cycle:
+                    ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
+            # print('Cycle {:d} done.'.format(cycle + 1))
+
+    # 调用绘图
+    draw_correlation(is_save=False)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
-    out_video_path = './output.mp4'
-    cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
-        .format('.', out_video_path)
-    os.system(cmd_str)
+    if is_convert:
+        out_video_path = './output.mp4'
+        cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+            .format('.', out_video_path)
+        os.system(cmd_str)
 
-    # 清空kpg文件
-    cmd_str = 'del *.jpg'
-    os.system(cmd_str)
+        out_gif_path = './output.gif'
+        converter = Video2GifConverter(out_video_path, out_gif_path)
+        converter.convert()
 
-    out_gif_path = './output.gif'
-    converter = Video2GifConverter(out_video_path, out_gif_path)
-    converter.convert()
+    # ----- 清空jpg文件
+    if len([x for x in os.listdir('./') if x.endswith('.jpg')]) > 0:
+        cmd_str = 'del *.jpg'
+        os.system(cmd_str)
 
     # plt.show()
 
 
-def draw_slide_window(plots_f_path='./plots_in_each_cycle_1s.npy'):
+def draw_slide_window(track):
     """
     先不考虑噪声
-    :param plots_f_path:
+    :param track:
     :return:
     """
-    # 加载tracks文件
-    if not os.path.isfile(plots_f_path):
-        print('[Err]: invalid file path.')
-        return
-    if plots_f_path.endswith('.npy'):
-        plots_per_cycle = np.load(plots_f_path, allow_pickle=True)
-    elif plots_f_path.endswith('.txt'):
-        pass
-    else:
-        print('[Err]: invalid tracks file format.')
-        return
-
-    # 雷达扫描周期(s)
-    cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
-    print('Radar scan cycle: {:d}s.', format(cycle_time))
+    plot_locs = [[plot.x_, plot.y_] for plot in track.plots_]
+    print(plot_locs)
 
 
 ## ---------- Algorithm
@@ -381,16 +380,6 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
     if succeed:
         M = len(tracks)
         print('{:d} tracks initialization succeeded.'.format(M))
-
-        # ## ---------- 可视化成功起始的航迹
-        # for track in tracks:
-        #     # print(track)
-        #     cycles = [plot.cycle_ for plot in track.plots_]
-        #     xs = [plot.x_ for plot in track.plots_]
-        #     ys = [plot.y_ for plot in track.plots_]
-        #
-        #     plots = [[x, y] for x, y in zip(xs, ys)]
-        #     plot_plots(plots, cycles)
 
         # ----------  构建航迹起始阶段的点迹信息字典
         init_phase_plots_state_dict = defaultdict(list)
@@ -452,16 +441,14 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                 plot_pred = get_predict_plot(track, cycle_time)
 
                 # 计算候选观测点迹
-                can_plot_objs = get_candidate_plot_objs(
-                    cycle_time, track, plot_pred, cycle_plots, σ_s)
+                can_plot_objs = get_candidate_plot_objs(cycle_time, track, plot_pred, cycle_plots, σ_s)
                 if len(can_plot_objs) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
-                    print("Track {:d} has zero observation plots within it's relating gate.".format(
-                        track.id_))
+                    print("Track {:d} has zero observation plots within it's relating gate."
+                          .format(track.id_))
                     track.quality_counter_ -= 1
 
                     if track.quality_counter_ <= 0:
-                        print(
-                            'Track {:d} is to be terminated.'.format(track.id_))
+                        print('Track {:d} is to be terminated.'.format(track.id_))
                         terminate_list.append(track.id_)
 
                     continue
@@ -564,8 +551,10 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
         # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
         print('Start visualization...')
-        draw_plot_track_correspondence(plots_per_cycle, tracks,
-                                       init_phase_plots_state_dict, correlate_phase_plots_state_dict)
+        draw_plot_track_correspondence(plots_per_cycle,
+                                       tracks,
+                                       init_phase_plots_state_dict,
+                                       correlate_phase_plots_state_dict)
 
     else:
         print('Track initialization failed.')
