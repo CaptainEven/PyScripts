@@ -296,15 +296,16 @@ def draw_plot_track_correspondence(plots_per_cycle,
                 elif state == 'Free' or state == 'Isolated':
                     ax1.text(x, y, str(cycle + 1), fontsize=8)
 
+            if cycle == track_init_cycle:
+                ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
+
+            ## ----- 暂停: 动态展示
             plt.pause(1e-8)
 
             ## ----- 存放每一个cycle的图
             if is_save:
                 frame_f_path = './{:05d}.jpg'.format(cycle)
                 plt.savefig(frame_f_path)
-
-                if cycle == track_init_cycle:
-                    ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图
@@ -330,21 +331,25 @@ def draw_plot_track_correspondence(plots_per_cycle,
 
     ## 分步骤绘制算法过程
     draw_slide_window(track=tracks[0])
+    is_convert = True
 
 
-def draw_slide_window(track, padding=150):
+def draw_slide_window(track, padding=150, is_convert=True):
     """
     先不考虑噪声
     :param track:
+    :param padding:
+    :param is_convert:
     :return:
     """
 
     def get_window(arr, start, win_size):
         return arr[start: start + win_size]
 
-    def draw_track(track):
+    def draw_track(track, is_save=True):
         """
         :param track:
+        :param is_save:
         :return:
         """
         # 超参数设定
@@ -444,29 +449,35 @@ def draw_slide_window(track, padding=150):
                         acceleration <= a_max and \
                         heading_deflection < angle_max:
 
-                        txt_y_pos -= txt_padding
-                        ax1.text(txt_x_pos, txt_y_pos,
-                         str('pass: True'),
-                         fontsize=10)
+                    txt_y_pos -= txt_padding
+                    ax1.text(txt_x_pos, txt_y_pos,
+                             str('pass: True'),
+                             fontsize=10)
 
-                        n_pass += 1
+                    n_pass += 1
                 else:
                     txt_y_pos -= txt_padding
                     ax1.text(txt_x_pos, txt_y_pos,
-                         str('pass: False'),
-                         fontsize=10)
+                             str('pass: False'),
+                             fontsize=10)
 
             if n_pass >= n:
                 ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) succeed.'
-                .format(n, m))
+                              .format(n, m))
             else:
                 ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) failed.'
-                .format(n, m))
+                              .format(n, m))
 
-            # ----------  暂停: 动态显示
-            plt.pause(5)
+            # ---------- 暂停: 动态显示
+            plt.pause(0.1)
+
+            ## ----- 存放每一个frame的图
+            if is_save:
+                frame_f_path = './{:05d}.jpg'.format(i)
+                plt.savefig(frame_f_path)
 
             # ---------- 后处理
+            # 清除上一个window的对象
             # patch.set_visible(False)
             patch.remove()
             scatter.remove()
@@ -477,7 +488,19 @@ def draw_slide_window(track, padding=150):
         # plt.show()
 
     # print(plot_locs)
-    draw_track(track)
+    # ---------- 绘制算法过程
+    draw_track(track, is_save=True)
+
+    # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
+    if is_convert:
+        out_video_path = './output.mp4'
+        cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+            .format('.', out_video_path)
+        os.system(cmd_str)
+
+        out_gif_path = './output.gif'
+        converter = Video2GifConverter(out_video_path, out_gif_path)
+        converter.convert()
 
 
 ## ---------- Algorithm
