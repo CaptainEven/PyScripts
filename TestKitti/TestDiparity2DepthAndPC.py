@@ -16,7 +16,7 @@ def points2pcd(points, PCD_FILE_PATH):
     # 得到点云点数
     point_num = points.shape[0]
 
-    # pcd头部（重要）
+    # pcd头部(重要)
     handle.write('# .PCD v0.7 - Point Cloud Data file format\nVERSION 0.7\nFIELDS x y z\nSIZE 4 4 4\nTYPE F F F\nCOUNT 1 1 1')
     string = '\nWIDTH ' + str(point_num)
     handle.write(string)
@@ -39,7 +39,7 @@ def points2ply(points, colors, ply_f_path):
     """
     # 读取三维点坐标和颜色信息
     points = np.hstack([points.reshape(-1, 3), colors.reshape(-1, 3)])
-    np.savetxt(ply_f_path, points, fmt='%f %f %f %d %d %d')  # 必须先写入，然后利用write()在头部插入ply header
+    np.savetxt(ply_f_path, points, fmt='%f %f %f %d %d %d')  # 必须先写入, 然后利用write()在头部插入ply header
 
     ply_header = '''ply
     format ascii 1.0
@@ -77,7 +77,7 @@ def test():
 
         return depth
 
-    disp_f_path = './disp.png'
+    disp_f_path = './disp.png'  # TestDisparity2DepthAndPC
     img_f_path = './img.png'
     if not (os.path.isfile(disp_f_path) or os.path.isfile(img_f_path)):
         print('[Err]: invalid disparity/image file path.')
@@ -112,10 +112,22 @@ def test():
     points[r, c, 0] = (c - cx) * depth / f  # x
     points[r, c, 1] = (r - cy) * depth / f  # y
     points[r, c, 2] = depth                 # z
-    # points = np.reshape(points, (H*W, 3))
     
     # bgr ——> rgb
     colors = bgr[:, :, ::-1]
+
+    # ----- 过滤掉x, y, z全为0的点
+    inds = np.where((points[:, :, 0] != 0.0) | (points[:, :, 1] != 0.0) | (points[:, :, 2] != 0.0))
+    points = points[inds]
+    colors = colors[inds]
+
+    # # --- convert
+    # points[:, 0] = (points[:, 0] + 0.1) * 300.0
+    # points[:, 1] = points[:, 1] * 300.0
+    # points[:, 2] = points[:, 2] * 300.0 - 11.5
+
+    # Reshaping points 3D
+    # points = np.reshape(points, (-1, 3))
 
     # 保存pcd点云文件
     points2pcd(points, './pc.pcd')

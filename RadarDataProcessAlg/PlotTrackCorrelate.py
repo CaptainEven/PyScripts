@@ -8,6 +8,7 @@ from random import sample
 from tqdm import tqdm
 from collections import defaultdict, OrderedDict
 
+from Mp4ToGif import Video2GifConverter
 from TrackInit import markers, colors
 from TrackInit import extrapolate_plot, Track, Plot, PlotStates, relate_gate_check
 from TrackInit import direct_method_with_bkg, logic_method_with_bkg, corrected_logic_method_with_bkg
@@ -291,18 +292,50 @@ def draw_plot_track_correspondence(plots_per_cycle, tracks,
             elif state == 'Free' or state == 'Isolated':
                 ax1.text(x, y, str(cycle + 1), fontsize=8)
             
-            plt.pause(0.000001)
+        plt.pause(0.00000001)
         
         ## ----- 存放每一个cycle的图
-        frame_f_path = './cycle_{:2d}.png'.format(cycle)
+        frame_f_path = './{:05d}.jpg'.format(cycle)
         plt.savefig(frame_f_path)
         
         if cycle == track_init_cycle:
             ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
         # print('Cycle {:d} done.'.format(cycle + 1))
 
-    # plt.legend(loc="upper left")
-    plt.show()
+    # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
+    out_video_path = './output.mp4'
+    cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format('.', out_video_path)
+    os.system(cmd_str)
+
+    out_gif_path = './output.gif'
+    converter = Video2GifConverter(out_video_path, out_gif_path)
+    converter.convert()
+
+    # plt.show()
+
+
+def draw_slide_window(plots_f_path='./plots_in_each_cycle_1s.npy'):
+    """
+    :param plots_f_path:
+    :return:
+    """
+    # 加载tracks文件
+    if not os.path.isfile(plots_f_path):
+        print('[Err]: invalid file path.')
+        return
+    if plots_f_path.endswith('.npy'):
+        plots_per_cycle = np.load(plots_f_path, allow_pickle=True)
+    elif plots_f_path.endswith('.txt'):
+        pass
+    else:
+        print('[Err]: invalid tracks file format.')
+        return
+
+    # 雷达扫描周期(s)
+    cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
+    print('Radar scan cycle: {:d}s.',format(cycle_time))
+
+
 
 ## ---------- Algorithm
 
@@ -542,6 +575,7 @@ def test_nn_plot_track_correlate(plots_f_path):
         print('[Err]: invalid tracks file format.')
         return
 
+    # 雷达扫描周期(s)
     cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
 
     # ---------- 点航相关
