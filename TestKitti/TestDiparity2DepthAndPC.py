@@ -113,7 +113,8 @@ def test():
     points[r, c, 1] = (r - cy) * depth / f  # y
     points[r, c, 2] = depth                 # z
     # points = np.reshape(points, (H*W, 3))
-
+    
+    # bgr ——> rgb
     colors = bgr[:, :, ::-1]
 
     # 保存pcd点云文件
