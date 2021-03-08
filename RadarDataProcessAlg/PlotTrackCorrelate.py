@@ -502,6 +502,11 @@ def draw_slide_window(track, padding=150, is_convert=True):
         converter = Video2GifConverter(out_video_path, out_gif_path)
         converter.convert()
 
+    # ----- 清空jpg文件
+    if len([x for x in os.listdir('./') if x.endswith('.jpg')]) > 0:
+        cmd_str = 'del *.jpg'
+        os.system(cmd_str)
+
 
 ## ---------- Algorithm
 
