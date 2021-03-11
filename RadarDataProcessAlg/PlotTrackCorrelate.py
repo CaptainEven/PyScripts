@@ -476,7 +476,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
                 ax1.set_title('Track initialization: logical method')
 
             n_pass = 0
-            for j in range(2, len(window)):
+            for j in range(2, len(window) - 1):
                 idx = i + j
                 plot_obj_pre = track.plots_[idx - 1]
                 plot_obj_cur = track.plots_[idx]
