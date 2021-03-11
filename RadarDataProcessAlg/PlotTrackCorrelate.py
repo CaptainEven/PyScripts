@@ -13,6 +13,7 @@ from Mp4ToGif import Video2GifConverter
 from TrackInit import direct_method_with_bkg, logic_method_with_bkg, corrected_logic_method_with_bkg
 from TrackInit import extrapolate_plot, Plot, PlotStates
 from TrackInit import markers, colors
+from TrackInit import start_gate_check
 
 
 def get_predict_plot(track, cycle_time):
@@ -275,7 +276,7 @@ def draw_plot_track_correspondence(cycle_time,
                     txt.remove()
                 cycle_noise_dots = []
                 cycle_noise_txts = []
-            
+
             for k, plot_obj in enumerate(plots_state):
                 if plot_obj.state_ == 0:  # 自由点迹(噪声)
                     state = PlotStates[0]
@@ -374,14 +375,15 @@ def draw_plot_track_correspondence(cycle_time,
     # plt.show()
 
     ## 分步骤绘制算法过程
-    draw_slide_window(track=tracks[0])
+    draw_slide_window(track=tracks[0], cycle_time=cycle_time)
     is_convert = True
 
 
-def draw_slide_window(track, padding=150, is_convert=True):
+def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
     """
     先不考虑噪声
     :param track:
+    :param cycle_time:
     :param padding:
     :param is_convert:
     :return:
@@ -390,29 +392,31 @@ def draw_slide_window(track, padding=150, is_convert=True):
     def get_window(arr, start, win_size):
         return arr[start: start + win_size]
 
-    def draw_track_init(track, method=0, is_save=True):
+    def draw_track_init(track, cycle_time, method=0, is_save=True):
         """
         :param track:
+        :param cycle_time:
         :param method:
         :param is_save:
         :return:
         """
         # ----- 绘图参数
-        pause_time = 0.5
+        pause_time = 1.5
 
         # 超参数设定
         m, n = 4, 3
+        v0 = 340.0
         txt_padding = (padding // 10) + 10
-        v_min = 0.1 * 340
-        v_max = 2.5 * 340
-        a_max = 20
-        angle_max = 7
+        v_min = 0.1 * v0
+        v_max = 2.5 * v0
+        a_max = 20.0
+        angle_max = 7.0
 
         plot_locs = [[plot.x_, plot.y_] for plot in track.plots_]
         plot_locs = np.array(plot_locs, dtype=np.float32)
 
         ## ---------- plotting
-        fig = plt.figure(figsize=[16, 9], dpi=120)
+        fig = plt.figure(figsize=[18, 6], dpi=100)
         fig.suptitle('Radar cartesian coordinate system')
         ax0 = plt.subplot(121)
         ax1 = plt.subplot(122)
@@ -426,7 +430,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
         # 开启交互模式
         # plt.ion()
 
-        # 滑窗过程
+        # ---------- 滑窗过程
         win_size = 6
         for i in range(len(plot_locs) - win_size + 1):
             # 取滑窗
@@ -437,12 +441,12 @@ def draw_slide_window(track, padding=150, is_convert=True):
             win_y = window[:, 1]
 
             # 计算合适的txt_padding
-            txt_padding = (max(win_y) - min(win_y)) * 0.03
+            txt_padding = (max(win_y) - min(win_y)) * 0.05
 
             # ----- 绘制已经出现的点迹
             ax0.scatter(win_x, win_y, c='b', marker='>', s=5)
 
-            # ---------- 处理左图
+            # ----- 处理左图
             # 计算窗口尺寸
             x_min = min(win_x) - padding
             x_max = max(win_x) + padding
@@ -450,15 +454,15 @@ def draw_slide_window(track, padding=150, is_convert=True):
             y_max = max(win_y) + padding
             # x_center, y_center = int((x_min + x_max) * 0.5), int((y_min + y_max) * 0.5)
 
-            patch = plt.Rectangle(xy=(x_min, y_min),
+            rect0 = plt.Rectangle(xy=(x_min, y_min),
                                   width=x_max - x_min,
                                   height=y_max - y_min,
                                   edgecolor='y',
                                   fill=False,
                                   linewidth=2)
-            ax0.add_patch(patch)
+            ax0.add_patch(rect0)
 
-            # ---------- 处理右图
+            # ----- 处理右图
             scatter = ax1.scatter(win_x, win_y, c='b', marker='>', s=25)
 
             # 遍历窗口每隔点迹: 绘制运动状态(m/n滑窗判定)
@@ -466,53 +470,100 @@ def draw_slide_window(track, padding=150, is_convert=True):
             n_pass = 0
             for j in range(2, len(window)):
                 idx = i + j
-                plot_obj = track.plots_[idx]
-                # print(plot_obj)
+                plot_obj_cur = track.plots_[idx]
+                plot_obj_pre = track.plots_[idx - 1]
+                # print(plot_obj_cur)
 
                 # ----- 绘制运动信息
-                x_loc, y_loc = plot_obj.x_, plot_obj.y_
-                veloc = plot_obj.v_
-                acceleration = plot_obj.a_
-                heading_deflection = plot_obj.heading_
+                x_loc, y_loc = plot_obj_cur.x_, plot_obj_cur.y_
+                veloc = plot_obj_cur.v_
+                acceleration = plot_obj_cur.a_
+                heading_deflection = plot_obj_cur.heading_
 
                 # 点迹运动状态
                 assert (x_loc == win_x[j] and y_loc == win_y[j])
 
-                txt_y_pos = y_loc - txt_padding
-                txt_x_pos = x_loc + txt_padding
-                ax1.text(txt_x_pos, txt_y_pos,
-                         str('pos: [{:d}, {:d}]'.format(int(x_loc), int(y_loc))),
-                         fontsize=10)
-                txt_y_pos -= txt_padding
-                ax1.text(txt_x_pos, txt_y_pos,
-                         str('v: {:.3f}m/s'.format(veloc)),
-                         fontsize=10)
-                txt_y_pos -= txt_padding
-                ax1.text(txt_x_pos, txt_y_pos,
-                         str('a: {:.3f}m/s²'.format(acceleration)),
-                         fontsize=10)
-                txt_y_pos -= txt_padding
-                ax1.text(txt_x_pos, txt_y_pos,
-                         str('h: {:.3f}°'.format(heading_deflection)),
-                         fontsize=10)
+                # txt_y_pos = y_loc - txt_padding
+                # txt_x_pos = x_loc + txt_padding
+                # ax1.text(txt_x_pos, txt_y_pos,
+                #          str('pos: [{:d}, {:d}]'.format(int(x_loc), int(y_loc))),
+                #          fontsize=10)
+                # txt_y_pos -= txt_padding
+                # ax1.text(txt_x_pos, txt_y_pos,
+                #          str('v: {:.3f}m/s'.format(veloc)),
+                #          fontsize=10)
+                # txt_y_pos -= txt_padding
+                # ax1.text(txt_x_pos, txt_y_pos,
+                #          str('a: {:.3f}m/s²'.format(acceleration)),
+                #          fontsize=10)
+                # txt_y_pos -= txt_padding
+                # ax1.text(txt_x_pos, txt_y_pos,
+                #          str('h: {:.3f}°'.format(heading_deflection)),
+                #          fontsize=10)
 
-                # 直接法判定
-                if veloc >= v_min and \
-                        veloc <= v_max and \
-                        acceleration <= a_max and \
-                        heading_deflection < angle_max:
+                if method == 0:
+                    # 直接法判定
+                    if veloc >= v_min and \
+                            veloc <= v_max and \
+                            acceleration <= a_max and \
+                            heading_deflection < angle_max:
 
-                    txt_y_pos -= txt_padding
-                    ax1.text(txt_x_pos, txt_y_pos,
-                             str('pass: True'),
-                             fontsize=10)
+                        txt_y_pos -= txt_padding
+                        ax1.text(txt_x_pos, txt_y_pos,
+                                 str('pass: True'),
+                                 fontsize=10)
 
-                    n_pass += 1
-                else:
-                    txt_y_pos -= txt_padding
-                    ax1.text(txt_x_pos, txt_y_pos,
-                             str('pass: False'),
-                             fontsize=10)
+                        n_pass += 1
+                    else:
+                        txt_y_pos -= txt_padding
+                        ax1.text(txt_x_pos, txt_y_pos,
+                                 str('pass: False'),
+                                 fontsize=10)
+                elif method == 1:
+                    # --------- 逻辑法判定
+                    # ----- 起始波门判定
+                    if start_gate_check(cycle_time,
+                                        [plot_obj_pre.x_, plot_obj_pre.y_],
+                                        [plot_obj_cur.x_, plot_obj_cur.y_],
+                                        v0):
+                        # ----- 计算初始波门(环形波门的两个半径)
+                        r_min = v0 * cycle_time * 0.5  # 小半径
+                        r_max = v0 * cycle_time * 1.0  # 大半径
+
+                        # 绘制起始波门(圆形/矩形): 用矩形看起来更舒服点
+                        rect_max = plt.Rectangle((plot_obj_pre.x_ - r_max, plot_obj_pre.y_ - r_max),
+                                                 width=r_max * 2,
+                                                 height=r_max * 2,
+                                                 edgecolor='c',
+                                                 fill=False,
+                                                 linewidth=2)
+                        rect_min = plt.Rectangle((plot_obj_pre.x_ - r_min, plot_obj_pre.y_ - r_min),
+                                                 width=r_min * 2,
+                                                 height=r_min * 2,
+                                                 edgecolor='c',
+                                                 fill=False,
+                                                 linewidth=2)
+
+                        # 绘制点迹标签
+                        txt_pre = ax1.text(plot_obj_pre.x_, plot_obj_pre.y_, str('PrePlot'))
+                        txt_cur = ax1.text(plot_obj_cur.x_, plot_obj_cur.y_, str('CurPlot'))
+
+                        # cc_max = plt.Circle((plot_obj_pre.x_, plot_obj_pre.y_), radius=r_max, color='g', fill=False)
+                        # cc_min = plt.Circle((plot_obj_pre.x_, plot_obj_pre.y_), radius=r_min, color='g', fill=False)
+                        # ax1.add_patch(cc_max)
+                        # ax1.add_patch(cc_min)
+                        ax1.add_patch(rect_max)
+                        ax1.add_patch(rect_min)
+
+                        ## ----- 显示绘制结果
+                        plt.pause(pause_time)
+
+                        rect_max.remove()
+                        rect_min.remove()
+                        txt_pre.remove()
+                        txt_cur.remove()
+
+                        # ----- 相关波门判定
 
             if n_pass >= n:
                 ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) succeed.'
@@ -532,7 +583,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
             # ---------- 后处理
             # 清除上一个window的对象
             # patch.set_visible(False)
-            patch.remove()
+            rect0.remove()
             scatter.remove()
             ax1.cla()
 
@@ -540,9 +591,11 @@ def draw_slide_window(track, padding=150, is_convert=True):
 
         # plt.show()
 
+    # ----------
+
     # print(plot_locs)
     # ---------- 绘制算法过程
-    draw_track_init(track, is_save=True)
+    draw_track_init(track, cycle_time, method=1, is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
