@@ -401,7 +401,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
         :return:
         """
         # ----- 绘图参数
-        pause_time = 1.5
+        pause_time = 1e-8
 
         # 超参数设定
         m, n = 4, 3
@@ -436,7 +436,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
 
         # ---------- 滑窗过程
         win_size = 6
-        for i in range(len(plot_locs) - win_size + 1):
+        for i in tqdm(range(len(plot_locs) - win_size + 1)):
             # 取滑窗
             window = get_window(plot_locs, i, win_size)
             window = np.array(window, dtype=np.float32)
