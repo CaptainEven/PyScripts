@@ -232,7 +232,7 @@ def draw_plot_track_correspondence(cycle_time,
         markers_track = sample(markers[4:8], n_tracks)
 
         # 绘制基础地图(极坐标系)
-        fig = plt.figure(figsize=[16, 8])
+        fig = plt.figure(figsize=[16, 9], dpi=120)
         fig.suptitle('Radar')
 
         ax0 = plt.subplot(121, projection="polar")
@@ -257,7 +257,16 @@ def draw_plot_track_correspondence(cycle_time,
         isolated_noise_legended = False
         related_legended = False
 
+        cycle_noise_dots = []
+        cycle_noise_txts = []
         for cycle, plots_state in tqdm(plots_state_dict):
+            if len(cycle_noise_dots) > 0:
+                for noise_dot, txt in zip(cycle_noise_dots, cycle_noise_txts):
+                    noise_dot.remove()
+                    txt.remove()
+                cycle_noise_dots = []
+                cycle_noise_txts = []
+            
             for k, plot_obj in enumerate(plots_state):
                 if plot_obj.state_ == 0:  # 自由点迹(噪声)
                     state = PlotStates[0]
@@ -296,7 +305,10 @@ def draw_plot_track_correspondence(cycle_time,
                         ax0.text(theta, r, str(cycle + 1), fontsize=8)
                 elif state == 'Free' or state == 'Isolated':
                     type1 = ax0.scatter(theta, r, c=color, marker=marker)
-                    ax0.text(theta, r, str(cycle + 1), fontsize=8)
+                    cycle_noise_dots.append(type1)  # 记录当前扫描周期的噪声点
+
+                    type1_txt = ax0.text(theta, r, str(cycle + 1), fontsize=8)
+                    cycle_noise_txts.append(type1_txt)  # 记录当前扫描周期的噪声点标签
 
                 # 绘制笛卡尔坐标
                 ax1.scatter(x, y, c=color, marker=marker, s=5)
@@ -322,7 +334,7 @@ def draw_plot_track_correspondence(cycle_time,
                           color='red',
                           label='Radar scan')
 
-            ## ----- 暂停: 动态展示
+            ## ----- 暂停: 动态展示当前雷达扫描周期
             plt.pause(pause_time)
 
             ## ----- 存放每一个cycle的图
@@ -390,7 +402,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
         plot_locs = np.array(plot_locs, dtype=np.float32)
 
         ## ---------- plotting
-        fig = plt.figure(figsize=[16, 8])
+        fig = plt.figure(figsize=[16, 9], dpi=120)
         fig.suptitle('Radar cartesian coordinate system')
         ax0 = plt.subplot(121)
         ax1 = plt.subplot(122)
