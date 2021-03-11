@@ -13,7 +13,7 @@ from Mp4ToGif import Video2GifConverter
 from TrackInit import direct_method_with_bkg, logic_method_with_bkg, corrected_logic_method_with_bkg
 from TrackInit import extrapolate_plot, Plot, PlotStates
 from TrackInit import markers, colors
-from TrackInit import start_gate_check
+from TrackInit import start_gate_check, relate_gate_check
 
 
 def get_predict_plot(track, cycle_time):
@@ -411,6 +411,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
         v_max = 2.5 * v0
         a_max = 20.0
         angle_max = 7.0
+        sigma_s = 160.0
 
         plot_locs = [[plot.x_, plot.y_] for plot in track.plots_]
         plot_locs = np.array(plot_locs, dtype=np.float32)
@@ -429,6 +430,9 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
 
         # 开启交互模式
         # plt.ion()
+
+        # ---------- cycle帧计数
+        fr_cnt = 0
 
         # ---------- 滑窗过程
         win_size = 6
@@ -466,12 +470,17 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
             scatter = ax1.scatter(win_x, win_y, c='b', marker='>', s=25)
 
             # 遍历窗口每隔点迹: 绘制运动状态(m/n滑窗判定)
-            ax1.set_title('Track initialization: direct method')
+            if method == 0:
+                ax1.set_title('Track initialization: direct method')
+            elif method == 1:
+                ax1.set_title('Track initialization: logical method')
+
             n_pass = 0
             for j in range(2, len(window)):
                 idx = i + j
-                plot_obj_cur = track.plots_[idx]
                 plot_obj_pre = track.plots_[idx - 1]
+                plot_obj_cur = track.plots_[idx]
+                plot_obj_nex = track.plots_[idx + 1]
                 # print(plot_obj_cur)
 
                 # ----- 绘制运动信息
@@ -544,9 +553,15 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
                                                  fill=False,
                                                  linewidth=2)
 
+                        # -- 绘制起始波门标签
+                        txt_start_gate = ax1.text(plot_obj_pre.x_ - r_max + txt_padding,
+                                                  plot_obj_pre.y_ - r_max + txt_padding,
+                                                  str('StartGate'))
+
                         # 绘制点迹标签
-                        txt_pre = ax1.text(plot_obj_pre.x_, plot_obj_pre.y_, str('PrePlot'))
-                        txt_cur = ax1.text(plot_obj_cur.x_, plot_obj_cur.y_, str('CurPlot'))
+                        txt_pre_plot = ax1.text(plot_obj_pre.x_, plot_obj_pre.y_, str('PrePlot'))
+                        txt_cur_plot = ax1.text(plot_obj_cur.x_, plot_obj_cur.y_, str('CurPlot'))
+                        txt_nex_plot = ax1.text(plot_obj_nex.x_, plot_obj_nex.y_, str('NexPlot'))
 
                         # cc_max = plt.Circle((plot_obj_pre.x_, plot_obj_pre.y_), radius=r_max, color='g', fill=False)
                         # cc_min = plt.Circle((plot_obj_pre.x_, plot_obj_pre.y_), radius=r_min, color='g', fill=False)
@@ -558,26 +573,124 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
                         ## ----- 显示绘制结果
                         plt.pause(pause_time)
 
+                        ## 存图
+                        if is_save:
+                            fr_cnt += 1
+
+                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                            plt.savefig(frame_f_path)
+
                         rect_max.remove()
                         rect_min.remove()
-                        txt_pre.remove()
-                        txt_cur.remove()
+                        txt_start_gate.remove()
 
                         # ----- 相关波门判定
+                        if relate_gate_check(cycle_time,
+                                             plot_obj_cur.v_,
+                                             plot_obj_cur.a_,
+                                             [plot_obj_pre.x_, plot_obj_pre.y_],
+                                             [plot_obj_cur.x_, plot_obj_cur.y_],
+                                             [plot_obj_nex.x_, plot_obj_nex.y_],
+                                             sigma_s=sigma_s):
+                            n_pass += 1
+
+                            # --- 绘制相关波门的相关判定过程
+                            # 预测位移值
+                            s = plot_obj_cur.v_ * cycle_time + 0.5 * plot_obj_cur.a_ * cycle_time * cycle_time
+
+                            # 计算(直线)外推点
+                            x_extra, y_extra = extrapolate_plot([plot_obj_pre.x_, plot_obj_pre.y_],
+                                                                [plot_obj_cur.x_, plot_obj_cur.y_],
+                                                                s)
+
+                            # -- 绘制外推预测点迹(用虚线箭头)
+                            arrow_extra = ax1.arrow(plot_obj_cur.x_, plot_obj_cur.y_,
+                                                    x_extra - plot_obj_cur.x_, y_extra - plot_obj_cur.y_,
+                                                    width=5, ls='--')
+
+                            # -- 绘制外推点迹
+                            dot_extra = ax1.scatter(int(x_extra), int(y_extra), c='m', marker='*', s=60)
+
+                            # ## -- pausing
+                            # plt.pause(pause_time)
+
+                            # ## 存图
+                            # if is_save:
+                            #     fr_cnt += 1
+
+                            #     frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                            #     plt.savefig(frame_f_path)
+
+                            # -- 绘制外推点迹标签
+                            dot_extra_txt = ax1.text(x_extra, y_extra, str('ExtraPlot'))
+
+                            ## --- pausing
+                            plt.pause(pause_time)
+
+                            ## 存图
+                            if is_save:
+                                fr_cnt += 1
+
+                                frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                                plt.savefig(frame_f_path)
+
+                            # 绘制相关波门
+                            rect_relate = plt.Rectangle((x_extra - sigma_s, y_extra - sigma_s),
+                                                        width=sigma_s * 2,
+                                                        height=sigma_s * 2,
+                                                        edgecolor='c',
+                                                        fill=False,
+                                                        linewidth=2)
+                            ax1.add_patch(rect_relate)
+
+                            # 绘制相关波门标签
+                            txt_relate_gate = ax1.text(x_extra - sigma_s + txt_padding,
+                                                       y_extra - sigma_s + txt_padding,
+                                                       str('RelateGate'))
+
+                            ## --- pausing
+                            plt.pause(pause_time)
+
+                            ## 存图
+                            if is_save:
+                                fr_cnt += 1
+
+                                frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                                plt.savefig(frame_f_path)
+
+                            # 清除外推点迹
+                            dot_extra.remove()
+                            arrow_extra.remove()
+                            rect_relate.remove()
+                            dot_extra_txt.remove()
+                            txt_relate_gate.remove()
+                            txt_pre_plot.remove()
+                            txt_cur_plot.remove()
+                            txt_nex_plot.remove()
 
             if n_pass >= n:
-                ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) succeed.'
-                              .format(n, m))
+                if method == 0:
+                    ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) succeed.'
+                                  .format(n, m))
+                elif method == 1:
+                    ax1.set_title('Track starting: logic method({:d}/{:d} sliding window) succeed.'
+                                  .format(n, m))
             else:
-                ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) failed.'
-                              .format(n, m))
+                if method == 0:
+                    ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) failed.'
+                                  .format(n, m))
+                elif method == 1:
+                    ax1.set_title('Track starting: logic method({:d}/{:d} sliding window) failed.'
+                                  .format(n, m))
 
-            # ---------- 暂停: 动态显示
+            ## --- pausing
             plt.pause(pause_time)
 
-            ## ----- 存放每一个frame的图
+            ## 存图
             if is_save:
-                frame_f_path = './{:05d}.jpg'.format(i)
+                fr_cnt += 1
+
+                frame_f_path = './{:05d}.jpg'.format(fr_cnt)
                 plt.savefig(frame_f_path)
 
             # ---------- 后处理
@@ -599,12 +712,15 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
-        out_video_path = './slide_window.mp4'
-        cmd_str = 'ffmpeg -f image2 -r 6 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+        if method == 0:
+            out_video_path = './slide_window_track_init_{}.mp4'.format('direct')
+        elif method == 1:
+            out_video_path = './slide_window_track_init_{}.mp4'.format('logic')
+        cmd_str = 'ffmpeg -f image2 -r 1 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
             .format('.', out_video_path)
         os.system(cmd_str)
 
-        out_gif_path = './slide_window.gif'
+        out_gif_path = out_video_path.replace('.mp4', '.gif')
         converter = Video2GifConverter(out_video_path, out_gif_path)
         converter.convert()
 
