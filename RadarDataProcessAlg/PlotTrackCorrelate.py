@@ -250,6 +250,15 @@ def draw_plot_track_correspondence(cycle_time,
         ax1 = plt.subplot(122)
         ax1.set_xticks(np.arange(-50000, 50000, 10000))
         ax1.set_yticks(np.arange(-50000, 50000, 10000))
+
+        # 绘制坐标轴
+        # ax1.axis()
+        ax1.axhline(y=0, linestyle="-", linewidth=1.5, c="green")
+        ax1.axvline(x=0, linestyle="-", linewidth=1.5, c="green")
+
+        # 绘制坐标轴箭头
+        # ax1.arrow(x=0, y=0, dx=50000, dy=0, width=1.5, fc='red', ec='blue', alpha=0.3)
+
         ax1.tick_params(labelsize=7)
         ax1.set_title('cartesian')
 
@@ -326,7 +335,7 @@ def draw_plot_track_correspondence(cycle_time,
             if cycle == track_init_cycle:
                 ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
 
-            # ----- 绘制雷达指针扫描
+            # ----- 绘制雷达扫描指针
             bar.remove()
             bar = ax0.bar(cycle * radians_per_move, 50000,
                           width=0.2,
@@ -344,7 +353,7 @@ def draw_plot_track_correspondence(cycle_time,
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图
-    draw_correlation(is_save=True)
+    # draw_correlation(is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
@@ -381,9 +390,10 @@ def draw_slide_window(track, padding=150, is_convert=True):
     def get_window(arr, start, win_size):
         return arr[start: start + win_size]
 
-    def draw_track(track, is_save=True):
+    def draw_track_init(track, method=0, is_save=True):
         """
         :param track:
+        :param method:
         :param is_save:
         :return:
         """
@@ -392,7 +402,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
 
         # 超参数设定
         m, n = 4, 3
-        txt_padding = (padding // 10) + 5
+        txt_padding = (padding // 10) + 10
         v_min = 0.1 * 340
         v_max = 2.5 * 340
         a_max = 20
@@ -410,7 +420,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
         ax1.set_title('Track initialization: direct method')
 
         x, y = plot_locs[:, 0], plot_locs[:, 1]
-        ax0.scatter(x, y, c='b', marker='>', s=5)
+        # ax0.scatter(x, y, c='b', marker='>', s=5)
         # plt.show()
 
         # 开启交互模式
@@ -426,7 +436,11 @@ def draw_slide_window(track, padding=150, is_convert=True):
             win_x = window[:, 0]
             win_y = window[:, 1]
 
-            ax1.set_title('Track initialization: direct method')
+            # 计算合适的txt_padding
+            txt_padding = (max(win_y) - min(win_y)) * 0.03
+
+            # ----- 绘制已经出现的点迹
+            ax0.scatter(win_x, win_y, c='b', marker='>', s=5)
 
             # ---------- 处理左图
             # 计算窗口尺寸
@@ -448,6 +462,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
             scatter = ax1.scatter(win_x, win_y, c='b', marker='>', s=25)
 
             # 遍历窗口每隔点迹: 绘制运动状态(m/n滑窗判定)
+            ax1.set_title('Track initialization: direct method')
             n_pass = 0
             for j in range(2, len(window)):
                 idx = i + j
@@ -527,7 +542,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
 
     # print(plot_locs)
     # ---------- 绘制算法过程
-    draw_track(track, is_save=True)
+    draw_track_init(track, is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
