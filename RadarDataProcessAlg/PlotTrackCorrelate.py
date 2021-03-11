@@ -179,13 +179,15 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
 
 
 ## ---------- visualization
-def draw_plot_track_correspondence(plots_per_cycle,
+def draw_plot_track_correspondence(cycle_time,
+                                   plots_per_cycle,
                                    tracks,
                                    init_phase_plots_state_dict,
                                    correlate_phase_plots_state_dict,
                                    is_convert=False):
     """
     可视化点迹-行迹关联
+    :param cycle_time:
     :param plots_per_cycle:
     :param tracks:
     :param init_phase_plots_state_dict:
@@ -193,6 +195,12 @@ def draw_plot_track_correspondence(plots_per_cycle,
     :param is_convert:
     :return:
     """
+    # ---------- 雷达扫描绘图参数
+    pause_time = 0.05  # show a frame per 0.05s
+    n_moves_per_cycle = cycle_time / pause_time  # 20 moves per cycle
+    degrees_per_move = 360.0 / n_moves_per_cycle
+    radians_per_move = degrees_per_move / math.pi
+
     # ---------- 数据汇总
     track_init_cycle = max([track.init_cycle_ for track in tracks])
 
@@ -209,6 +217,10 @@ def draw_plot_track_correspondence(plots_per_cycle,
                               key=lambda x: x[0], reverse=False)
 
     def draw_correlation(is_save=True):
+        """
+        :param is_save:
+        :return:
+        """
         # ---------- 绘图
         n_tracks = len(tracks)
         n_sample = n_tracks + len(PlotStates)
@@ -231,6 +243,9 @@ def draw_plot_track_correspondence(plots_per_cycle,
         ax0.set_rticks(np.arange(-50000, 50000, 3000))
         ax0.tick_params(labelsize=6)
         ax0.set_title('polar')
+
+        # 极坐标绘制雷达扫描指针
+        bar = ax0.bar(0, 50000, width=0.2, alpha=0.3, color='red', label='Radar scan')
 
         ax1 = plt.subplot(122)
         ax1.set_xticks(np.arange(-50000, 50000, 10000))
@@ -299,8 +314,16 @@ def draw_plot_track_correspondence(plots_per_cycle,
             if cycle == track_init_cycle:
                 ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
 
+            # ----- 绘制雷达指针扫描
+            bar.remove()
+            bar = ax0.bar(cycle * radians_per_move, 50000,
+                          width=0.2,
+                          alpha=0.3,
+                          color='red',
+                          label='Radar scan')
+
             ## ----- 暂停: 动态展示
-            plt.pause(1e-8)
+            plt.pause(pause_time)
 
             ## ----- 存放每一个cycle的图
             if is_save:
@@ -309,16 +332,16 @@ def draw_plot_track_correspondence(plots_per_cycle,
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图
-    # draw_correlation(is_save=False)
+    draw_correlation(is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
-        out_video_path = './output.mp4'
-        cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+        out_video_path = './scan.mp4'
+        cmd_str = 'ffmpeg -f image2 -r 6 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
             .format('.', out_video_path)
         os.system(cmd_str)
 
-        out_gif_path = './output.gif'
+        out_gif_path = './scan.gif'
         converter = Video2GifConverter(out_video_path, out_gif_path)
         converter.convert()
 
@@ -352,6 +375,9 @@ def draw_slide_window(track, padding=150, is_convert=True):
         :param is_save:
         :return:
         """
+        # ----- 绘图参数
+        pause_time = 0.5
+
         # 超参数设定
         m, n = 4, 3
         txt_padding = (padding // 10) + 5
@@ -469,7 +495,7 @@ def draw_slide_window(track, padding=150, is_convert=True):
                               .format(n, m))
 
             # ---------- 暂停: 动态显示
-            plt.pause(0.1)
+            plt.pause(pause_time)
 
             ## ----- 存放每一个frame的图
             if is_save:
@@ -493,12 +519,12 @@ def draw_slide_window(track, padding=150, is_convert=True):
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
-        out_video_path = './output.mp4'
-        cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+        out_video_path = './slide_window.mp4'
+        cmd_str = 'ffmpeg -f image2 -r 6 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
             .format('.', out_video_path)
         os.system(cmd_str)
 
-        out_gif_path = './output.gif'
+        out_gif_path = './slide_window.gif'
         converter = Video2GifConverter(out_video_path, out_gif_path)
         converter.convert()
 
@@ -552,8 +578,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
         # ----------  构建航迹起始阶段的点迹信息字典
         init_phase_plots_state_dict = defaultdict(list)
-        last_cycle = max(
-            [plot.cycle_ for track in tracks for plot in track.plots_])
+        last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
         for track in tracks:
             for plot in track.plots_:
                 init_phase_plots_state_dict[plot.cycle_].append(plot)
@@ -638,27 +663,23 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                     obs_plot_obj = can_plot_objs[0]
 
                     # 计算该点迹与其他航迹的距离
-                    other_tracks = [
-                        track_o for track_o in tracks if track_o.id_ != track.id_]
+                    other_tracks = [track_o for track_o in tracks if track_o.id_ != track.id_]
                     other_ma_dists = []
                     for track_o in other_tracks:  #
                         # 构建预测点迹对象: 跟last_cycle的plot保持一致
                         plot_pred_o = get_predict_plot(track_o, cycle_time)
 
                         # 计算候选观测点迹
-                        can_plot_objs_o = get_candidate_plot_objs(
-                            cycle_time, track_o, plot_pred_o, cycle_plots, σ_s)
+                        can_plot_objs_o = get_candidate_plot_objs(cycle_time, track_o, plot_pred_o, cycle_plots, σ_s)
 
                         if len(can_plot_objs_o) == 0:  # 如果没有候选点迹落入该track的相关(跟踪)波门
                             other_ma_dists.append(np.inf)
                         else:
                             # 计算残差的协方差矩阵
-                            cov_mat_o = compute_cov_mat(
-                                plot_pred_o, can_plot_objs_o)
+                            cov_mat_o = compute_cov_mat(plot_pred_o, can_plot_objs_o)
 
                             # --- 计算马氏距离
-                            ma_dist_o = compute_ma_dist(
-                                cov_mat_o, obs_plot_obj, plot_pred_o)
+                            ma_dist_o = compute_ma_dist(cov_mat_o, obs_plot_obj, plot_pred_o)
                             other_ma_dists.append(ma_dist_o)
 
                             # # 判断该点迹是否同时落入其他航迹
@@ -720,10 +741,12 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
         # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
         print('Start visualization...')
-        draw_plot_track_correspondence(plots_per_cycle,
+        draw_plot_track_correspondence(cycle_time,
+                                       plots_per_cycle,
                                        tracks,
                                        init_phase_plots_state_dict,
-                                       correlate_phase_plots_state_dict)
+                                       correlate_phase_plots_state_dict,
+                                       is_convert=True)
 
     else:
         print('Track initialization failed.')
