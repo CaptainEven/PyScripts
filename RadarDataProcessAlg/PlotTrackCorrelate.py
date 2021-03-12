@@ -233,7 +233,7 @@ def draw_plot_track_correspondence(cycle_time,
         markers_track = sample(markers[4:8], n_tracks)
 
         # 绘制基础地图(极坐标系)
-        fig = plt.figure(figsize=[16, 9], dpi=120)
+        fig = plt.figure(figsize=[18, 9], dpi=100)
         fig.suptitle('Radar')
 
         ax0 = plt.subplot(121, projection="polar")
@@ -389,6 +389,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
     :param init_method:
     :return:
     """
+
     def get_window(arr, start, win_size):
         return arr[start: start + win_size]
 
