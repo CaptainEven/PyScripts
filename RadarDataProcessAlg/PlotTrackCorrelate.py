@@ -354,7 +354,7 @@ def draw_plot_track_correspondence(cycle_time,
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图
-    # draw_correlation(is_save=True)
+    draw_correlation(is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
@@ -379,16 +379,16 @@ def draw_plot_track_correspondence(cycle_time,
     is_convert = True
 
 
-def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
+def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_method=1):
     """
     先不考虑噪声
     :param track:
     :param cycle_time:
     :param padding:
     :param is_convert:
+    :param init_method:
     :return:
     """
-
     def get_window(arr, start, win_size):
         return arr[start: start + win_size]
 
@@ -708,13 +708,13 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True):
 
     # print(plot_locs)
     # ---------- 绘制算法过程
-    draw_track_init(track, cycle_time, method=1, is_save=True)
+    draw_track_init(track, cycle_time, method=init_method, is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
-        if method == 0:
+        if init_method == 0:
             out_video_path = './slide_window_track_init_{}.mp4'.format('direct')
-        elif method == 1:
+        elif init_method == 1:
             out_video_path = './slide_window_track_init_{}.mp4'.format('logic')
         cmd_str = 'ffmpeg -f image2 -r 1 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
             .format('.', out_video_path)
