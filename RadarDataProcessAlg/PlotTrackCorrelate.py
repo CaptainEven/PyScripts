@@ -375,7 +375,7 @@ def draw_plot_track_correspondence(cycle_time,
     # plt.show()
 
     ## 分步骤绘制算法过程
-    draw_slide_window(track=tracks[0], cycle_time=cycle_time)
+    draw_slide_window(track=tracks[0], cycle_time=cycle_time, init_method=0)
     is_convert = True
 
 
@@ -446,7 +446,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
             win_y = window[:, 1]
 
             # 计算合适的txt_padding
-            txt_padding = (max(win_y) - min(win_y)) * 0.05
+            txt_padding = (max(win_y) - min(win_y)) * 0.055
 
             # ----- 绘制已经出现的点迹
             ax0.scatter(win_x, win_y, c='b', marker='>', s=5)
@@ -476,13 +476,20 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
             elif method == 1:
                 ax1.set_title('Track initialization: logical method')
 
+            # --------- 窗口内遍历
+            if method == 0:
+                win_edge = len(window)
+            elif method == 1 or method == 2:
+                win_edge = len(window) - 1
+
             n_pass = 0
-            for j in range(2, len(window) - 1):
+            for j in range(2, win_edge):
                 idx = i + j
                 plot_obj_pre = track.plots_[idx - 1]
                 plot_obj_cur = track.plots_[idx]
-                plot_obj_nex = track.plots_[idx + 1]
-                # print(plot_obj_cur)
+                
+                if method == 1 or method == 2:
+                    plot_obj_nex = track.plots_[idx + 1]
 
                 # ----- 绘制运动信息
                 x_loc, y_loc = plot_obj_cur.x_, plot_obj_cur.y_
@@ -493,32 +500,38 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                 # 点迹运动状态
                 assert (x_loc == win_x[j] and y_loc == win_y[j])
 
-                # txt_y_pos = y_loc - txt_padding
-                # txt_x_pos = x_loc + txt_padding
-                # ax1.text(txt_x_pos, txt_y_pos,
-                #          str('pos: [{:d}, {:d}]'.format(int(x_loc), int(y_loc))),
-                #          fontsize=10)
-                # txt_y_pos -= txt_padding
-                # ax1.text(txt_x_pos, txt_y_pos,
-                #          str('v: {:.3f}m/s'.format(veloc)),
-                #          fontsize=10)
-                # txt_y_pos -= txt_padding
-                # ax1.text(txt_x_pos, txt_y_pos,
-                #          str('a: {:.3f}m/s²'.format(acceleration)),
-                #          fontsize=10)
-                # txt_y_pos -= txt_padding
-                # ax1.text(txt_x_pos, txt_y_pos,
-                #          str('h: {:.3f}°'.format(heading_deflection)),
-                #          fontsize=10)
-
                 if method == 0:
                     # 直接法判定
+                    txt_y_pos = y_loc
+                    txt_x_pos = x_loc
+                    # txt_y_pos = y_loc - txt_padding
+                    # txt_x_pos = x_loc + txt_padding
+                    # ax1.text(txt_x_pos, txt_y_pos,
+                    #          str('pos: [{:d}, {:d}]'.format(int(x_loc), int(y_loc))),
+                    #          fontsize=10)
+                    # txt_y_pos -= txt_padding
+
+                    ax1.text(txt_x_pos, txt_y_pos,
+                             str('v: {:.3f}m/s'.format(veloc)),
+                             fontsize=10)
+
+                    txt_y_pos -= txt_padding
+                    ax1.text(txt_x_pos, txt_y_pos,
+                             str('a: {:.3f}m/s²'.format(acceleration)),
+                             fontsize=10)
+
+                    txt_y_pos -= txt_padding
+                    ax1.text(txt_x_pos, txt_y_pos,
+                             str('h: {:.3f}°'.format(heading_deflection)),
+                             fontsize=10)
+                    
                     if veloc >= v_min and \
                             veloc <= v_max and \
                             acceleration <= a_max and \
                             heading_deflection < angle_max:
 
-                        txt_y_pos -= txt_padding
+                        txt_x_pos = x_loc + txt_padding
+                        txt_y_pos = y_loc - txt_padding
                         ax1.text(txt_x_pos, txt_y_pos,
                                  str('pass: True'),
                                  fontsize=10)
@@ -669,7 +682,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                             txt_cur_plot.remove()
                             txt_nex_plot.remove()
 
-            if n_pass >= n:
+            if n_pass >= n:  # m/n法则
                 if method == 0:
                     ax1.set_title('Track starting: direct method({:d}/{:d} sliding window) succeed.'
                                   .format(n, m))
@@ -799,8 +812,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
         # ---------- 航迹起始成功后, 点航相关过程
         # 获取下一个扫描cycle编号
-        last_cycle = max(
-            [plot.cycle_ for track in tracks for plot in track.plots_])
+        last_cycle = max([plot.cycle_ for track in tracks for plot in track.plots_])
         start_cycle = last_cycle + 1
         print('Start correlation from cycle {:d}...'.format(start_cycle))
         for track in tracks:
