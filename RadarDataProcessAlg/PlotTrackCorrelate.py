@@ -223,6 +223,9 @@ def draw_plot_track_correspondence(cycle_time,
         :return:
         """
         # ---------- 绘图
+        marker_size = 12
+        txt_size = 10
+
         n_tracks = len(tracks)
         n_sample = n_tracks + len(PlotStates)
 
@@ -254,8 +257,8 @@ def draw_plot_track_correspondence(cycle_time,
 
         # 绘制坐标轴
         # ax1.axis()
-        ax1.axhline(y=0, linestyle="-", linewidth=1.5, c="green")
-        ax1.axvline(x=0, linestyle="-", linewidth=1.5, c="green")
+        ax1.axhline(y=0, linestyle="-", linewidth=1.8, c="green")
+        ax1.axvline(x=0, linestyle="-", linewidth=1.8, c="green")
 
         # 绘制坐标轴箭头
         # ax1.arrow(x=0, y=0, dx=50000, dy=0, width=1.5, fc='red', ec='blue', alpha=0.3)
@@ -306,32 +309,32 @@ def draw_plot_track_correspondence(cycle_time,
 
                 # 绘制极坐标点迹
                 if state == 'Related':
-                    type0 = ax0.scatter(theta, r, c=color, marker=marker, s=5)
+                    type0 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
                     if cycle == track_init_cycle:
                         txt = 'Track' + str(plot_obj.correlated_track_id_)
-                        ax0.text(theta, r, txt, fontsize=10)
+                        ax0.text(theta, r, txt, fontsize=txt_size)
 
                     if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
-                        ax0.text(theta, r, str(cycle + 1), fontsize=8)
+                        ax0.text(theta, r, str(cycle + 1), fontsize=txt_size)
                 elif state == 'Free' or state == 'Isolated':
-                    type1 = ax0.scatter(theta, r, c=color, marker=marker)
+                    type1 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
                     cycle_noise_dots.append(type1)  # 记录当前扫描周期的噪声点
 
-                    type1_txt = ax0.text(theta, r, str(cycle + 1), fontsize=8)
+                    type1_txt = ax0.text(theta, r, str(cycle + 1), fontsize=txt_size)
                     cycle_noise_txts.append(type1_txt)  # 记录当前扫描周期的噪声点标签
 
                 # 绘制笛卡尔坐标
-                ax1.scatter(x, y, c=color, marker=marker, s=5)
+                ax1.scatter(x, y, c=color, marker=marker, s=marker_size)
 
                 if state == 'Related' and cycle == track_init_cycle:
                     txt = 'Track' + str(plot_obj.correlated_track_id_)
-                    ax1.text(x, y, txt, fontsize=10)
+                    ax1.text(x, y, txt, fontsize=txt_size)
 
                 if state == 'Related':
                     if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
-                        ax1.text(x, y, str(cycle + 1), fontsize=8)
+                        ax1.text(x, y, str(cycle + 1), fontsize=txt_size)
                 elif state == 'Free' or state == 'Isolated':
-                    ax1.text(x, y, str(cycle + 1), fontsize=8)
+                    ax1.text(x, y, str(cycle + 1), fontsize=txt_size)
 
             if cycle == track_init_cycle:
                 ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
@@ -502,8 +505,8 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
 
                 if method == 0:
                     # 直接法判定
-                    txt_y_pos = y_loc
                     txt_x_pos = x_loc
+                    txt_y_pos = y_loc - txt_padding
                     # txt_y_pos = y_loc - txt_padding
                     # txt_x_pos = x_loc + txt_padding
                     # ax1.text(txt_x_pos, txt_y_pos,
@@ -530,8 +533,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                             acceleration <= a_max and \
                             heading_deflection < angle_max:
 
-                        txt_x_pos = x_loc + txt_padding
-                        txt_y_pos = y_loc - txt_padding
+                        txt_y_pos -= txt_padding
                         ax1.text(txt_x_pos, txt_y_pos,
                                  str('pass: True'),
                                  fontsize=10)
