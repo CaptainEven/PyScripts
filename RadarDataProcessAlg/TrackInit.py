@@ -210,17 +210,17 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
     # degree = np.random.rand() * 360
 
     # 随即起始坐标
-    x0 = np.random.randint(-40000, 40000)
-    y0 = np.random.randint(-40000, 40000)
+    x0 = np.random.randint(-50000, 50000)
+    y0 = np.random.randint(-50000, 50000)
     while 1:
-        if ((x0 > 32000 and x0 < 33000) or (x0 > -33000 and x0 < -32000)) \
-                and ((y0 > 32000 and y0 < 33000) or (y0 > -33000 and y0 < -32000)):
+        if ((x0 > -45000 and x0 < 45000) or (x0 > -45000 and x0 < 45000)) \
+                and ((y0 > -45000 and y0 < 45000) or (y0 > -45000 and y0 < 45000)):
             break
         else:
             # x0 = 30000
             # y0 = 35000
-            x0 = np.random.randint(-40000, 40000)
-            y0 = np.random.randint(-40000, 40000)
+            x0 = np.random.randint(-50000, 50000)
+            y0 = np.random.randint(-50000, 50000)
     print('X0Y0: [{:d}, {:d}]'.format(x0, y0))
 
     # 根据起始坐标(判断其所在笛卡尔坐标象限)设置direction
@@ -1250,8 +1250,8 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
 
             # 按照mapping链递推其余cycle的plot id
             for (c, mapping) in mappings:  # mapping已经按照cycle倒序排列过了
-                id = mapping[id]  # 倒推映射链plot id
-                plot_ids.append(id)
+                idx = mapping[id]  # 倒推映射链plot id
+                plot_ids.append(idx)
 
             # print(ids)  # ids是按照cycle倒排的
             # 根据ids链接构建plot链: 暂时航迹

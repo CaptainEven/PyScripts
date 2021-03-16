@@ -5,15 +5,16 @@ import os
 from collections import defaultdict, OrderedDict
 from random import sample
 
-import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
+import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.gridspec import GridSpec
 from tqdm import tqdm
 
 from Mp4ToGif import Video2GifConverter
+from TrackInit import colors
 from TrackInit import direct_method_with_bkg, logic_method_with_bkg, corrected_logic_method_with_bkg
 from TrackInit import extrapolate_plot, Plot, PlotStates
-from TrackInit import markers, colors
 from TrackInit import start_gate_check, relate_gate_check
 
 
@@ -174,8 +175,9 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
 
     else:  # 5×5  有至少2个观测点迹落入相关(跟踪)波门
         # 计算马氏距离
-        ma_dist = math.sqrt(
-            np.dot(res_vector.T, np.linalg.inv(cov_mat)).dot(res_vector))
+        val = np.dot(res_vector.T, np.linalg.inv(cov_mat)).dot(res_vector)
+        val = val if val >= 0.0 else -val
+        ma_dist = math.sqrt(val)
 
     return ma_dist
 
@@ -186,6 +188,7 @@ def draw_plot_track_correspondence(cycle_time,
                                    tracks,
                                    init_phase_plots_state_dict,
                                    correlate_phase_plots_state_dict,
+                                   is_save=True,
                                    is_convert=False):
     """
     可视化点迹-行迹关联
@@ -194,6 +197,7 @@ def draw_plot_track_correspondence(cycle_time,
     :param tracks:
     :param init_phase_plots_state_dict:
     :param correlate_phase_plots_state_dict:
+    :param is_save:
     :param is_convert:
     :return:
     """
@@ -272,6 +276,8 @@ def draw_plot_track_correspondence(cycle_time,
 
         cycle_noise_dots = []
         cycle_noise_txts = []
+
+        # 两层for循环遍历每一个cycle的每一个点迹(关联点迹或噪声点迹)
         for cycle, plots_state in tqdm(plots_state_dict):
             if len(cycle_noise_dots) > 0:
                 for noise_dot, txt in zip(cycle_noise_dots, cycle_noise_txts):
@@ -341,7 +347,7 @@ def draw_plot_track_correspondence(cycle_time,
 
             # ----- 绘制雷达扫描指针
             bar.remove()
-            bar = ax0.bar(cycle * radians_per_move*5.0, 50000,
+            bar = ax0.bar(cycle * radians_per_move * 5.0, 50000,
                           width=0.35,
                           alpha=0.3,
                           color='red',
@@ -357,18 +363,20 @@ def draw_plot_track_correspondence(cycle_time,
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图
-    draw_correlation(is_save=True)
+    # draw_correlation(is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
-        out_video_path = './scan.mp4'
-        cmd_str = 'ffmpeg -f image2 -r 6 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
-            .format('.', out_video_path)
-        os.system(cmd_str)
+        jpg_f_list = [x for x in os.listdir('./') if x.endswith('.jpg')]
+        if len(jpg_f_list) > 0:
+            out_video_path = './scan.mp4'
+            cmd_str = 'ffmpeg -f image2 -r 6 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+                .format('.', out_video_path)
+            os.system(cmd_str)
 
-        out_gif_path = './scan.gif'
-        converter = Video2GifConverter(out_video_path, out_gif_path)
-        converter.convert()
+            out_gif_path = './scan.gif'
+            converter = Video2GifConverter(out_video_path, out_gif_path)
+            converter.convert()
 
     # ----- 清空jpg文件
     if len([x for x in os.listdir('./') if x.endswith('.jpg')]) > 0:
@@ -378,8 +386,165 @@ def draw_plot_track_correspondence(cycle_time,
     # plt.show()
 
     ## 分步骤绘制算法过程
-    draw_slide_window(track=tracks[0], cycle_time=cycle_time, init_method=1)
+    # draw_slide_window(track=tracks[0], cycle_time=cycle_time, init_method=1)
     is_convert = True
+
+    ## 绘制点-航相关
+    draw_plot_track_relate(plots_state_dict, tracks)
+
+
+def get_window(arr, start, win_size):
+    return arr[start: start + win_size]
+
+
+##### ----- 绘制点航相关算法过程
+def draw_plot_track_relate(plots_objs_per_cycle, tracks, σ_s=160):
+    """
+    :param plots_state_dict_per_cycle:
+    :param tracks:
+    :param σ_s:
+    :return:
+    """
+    pause_time = 5e-1
+
+    track_init_cycle = max([track.init_cycle_ for track in tracks])
+    print('Track init cycle: {:d}.'.format(track_init_cycle))
+
+    # ---------- 绘图
+    marker_size = 12
+    txt_size = 10
+
+    n_tracks = len(tracks)
+    n_sample = n_tracks + len(PlotStates)
+
+    colors_noise = 'y'
+    markers_noise = '*'
+    colors_track = sample(colors[:len(tracks)], n_tracks)
+    markers_track = 'o'  # sample(markers[4:8], n_tracks)
+
+    # 绘制基础地图(极坐标系)
+    fig = plt.figure(figsize=[18, 9], dpi=100)
+    fig.suptitle('Radar')
+    gs = GridSpec(2, 2, figure=fig)
+
+    ax0 = plt.subplot(gs[:, 0], projection="polar")
+    ax0.set_theta_zero_location('N')  # 'E', 'N'
+    ax0.set_theta_direction(1)  # anti-clockwise
+    ax0.set_rmin(10)
+    ax0.set_rmax(100000)
+    ax0.set_rticks(np.arange(-50000, 50000, 3000))
+    ax0.tick_params(labelsize=6)
+    ax0.set_title('polar')
+
+    # 极坐标绘制雷达扫描指针
+    bar = ax0.bar(0, 50000, width=0.35, alpha=0.3, color='red', label='Radar scan')
+
+    # ax1 = plt.subplot(122)
+    # ax1.set_xticks(np.arange(-30000, 30000, 10000))
+    # ax1.set_yticks(np.arange(-30000, 30000, 10000))
+
+    # # 绘制坐标轴
+    # # ax1.axis()
+    # ax1.axhline(y=0, linestyle="-", linewidth=1.8, c="green")
+    # ax1.axvline(x=0, linestyle="-", linewidth=1.8, c="green")
+
+    # 绘制坐标轴箭头
+    # ax1.arrow(x=0, y=0, dx=50000, dy=0, width=1.5, fc='red', ec='blue', alpha=0.3)
+
+    # ax1.tick_params(labelsize=7)
+    # ax1.set_title('cartesian')
+
+    free_noise_legended = False
+    isolated_noise_legended = False
+    related_legended = False
+
+    cycle_noise_dots = []
+    cycle_noise_txts = []
+
+    track2_plot_marker = 'd'
+    track2_plot_color = 'r'
+    track3_plot_marker = 'o'
+    track3_plot_color = 'b'
+    noise_plot_marker = '*'
+    noise_plot_color = 'g'
+
+    ## ----- 取滑窗
+    win_size = 6
+    for i in tqdm(range(len(plots_objs_per_cycle) - win_size + 1)):
+        # 取窗口
+        window = get_window(plots_objs_per_cycle, i, win_size)
+        # print(window)
+
+        if window[0][0] < 12:
+            min_x_tr2 = min([x.x_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 2])
+            max_x_tr2 = max([x.x_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 2])
+            min_y_tr2 = min([x.y_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 2])
+            max_y_tr2 = max([x.y_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 2])
+
+            min_x_tr3 = min([x.x_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 3])
+            max_x_tr3 = max([x.x_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 3])
+            min_y_tr3 = min([x.y_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 3])
+            max_y_tr3 = max([x.y_ for cycle, X in window for x in X if x.state_ == 1 and x.correlated_track_id_ == 3])
+
+            ax_tr2 = plt.subplot(gs[0, 1])
+            ax_tr2.set_xticks(np.arange(min_x_tr2, max_x_tr2, 10000))
+            ax_tr2.set_yticks(np.arange(min_y_tr2, max_y_tr2, 10000))
+            ax_tr2.tick_params(labelsize=7)
+            ax_tr2.set_title('cartesian')
+
+            ax_tr3 = plt.subplot(gs[1, 1])
+            ax_tr3.set_xticks(np.arange(min_x_tr3, max_x_tr3, 10000))
+            ax_tr3.set_yticks(np.arange(min_y_tr3, max_y_tr3, 10000))
+            ax_tr3.tick_params(labelsize=7)
+            ax_tr3.set_title('cartesian')
+
+            # 绘制坐标轴箭头
+            # ax1.arrow(x=0, y=0, dx=50000, dy=0, width=1.5, fc='red', ec='blue', alpha=0.3)
+
+            ax_tr2.tick_params(labelsize=7)
+            ax_tr2.set_title('cartesian')
+
+            # 取我们关心的track对应的点迹和噪声点迹
+            track2_plot_objs = []
+            track3_plot_objs = []
+            noise_plots = []
+            for cycle, cycle_plot_objs in window:
+                for plot_obj in cycle_plot_objs:
+                    if plot_obj.state_ == 1:
+                        if plot_obj.correlated_track_id_ == 2:  # 我们感兴趣的相关点迹
+                            track2_plot_objs.append(plot_obj)
+
+                            # 绘制点迹
+                            ax_tr2.scatter(plot_obj.x_, plot_obj.y_,
+                                           c=track2_plot_color, marker=track2_plot_marker, s=25)
+                        elif plot_obj.correlated_track_id_ == 3:
+                            track3_plot_objs.append(plot_obj)
+
+                            # 绘制点迹
+                            ax_tr3.scatter(plot_obj.x_, plot_obj.y_,
+                                           c=track3_plot_color, marker=track3_plot_marker, s=25)
+                    elif plot_obj.state_ == 0 or plot_obj.state_ == 2:  # 噪声点迹
+                        noise_plots.append(plot_obj)
+
+                        # 绘制噪声点迹
+                        if plot_obj.x_ > min_x_tr2 and plot_obj.x_ < max_x_tr2 \
+                                and plot_obj.y_ > min_y_tr2 and plot_obj.y_ < max_y_tr2:
+                            ax_tr2.scatter(plot_obj.x_, plot_obj.y_,
+                                           c=noise_plot_color, marker=noise_plot_marker, s=25)
+
+                        elif plot_obj.x_ > min_x_tr3 and plot_obj.x_ < max_x_tr3 \
+                                and plot_obj.y_ > min_y_tr3 and plot_obj.y_ < max_y_tr3:
+                            ax_tr3.scatter(plot_obj.x_, plot_obj.y_,
+                                           c=noise_plot_color, marker=noise_plot_marker, s=25)
+
+            ## ----- 暂停: 动态展示当前雷达扫描周期
+            plt.pause(pause_time)
+
+            ax_tr2.cla()
+            ax_tr3.cla()
+        else:
+            pass
+            # 右图将track2, track3绘制到同一个子图里
 
 
 def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_method=1):
@@ -493,13 +658,12 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
             n_pass = 0
             for j in range(2, win_edge):
 
-
                 idx = i + j
                 plot_obj_pre = track.plots_[idx - 1]
                 plot_obj_cur = track.plots_[idx]
                 if j == 2:
                     plot_obj_prepre = track.plots_[idx - 2]
-                
+
                 if method == 1 or method == 2:
                     plot_obj_nex = track.plots_[idx + 1]
 
@@ -536,7 +700,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                     ax1.text(txt_x_pos, txt_y_pos,
                              str('h: {:.3f}°'.format(heading_deflection)),
                              fontsize=10)
-                    
+
                     if veloc >= v_min and \
                             veloc <= v_max and \
                             acceleration <= a_max and \
@@ -681,9 +845,9 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                                 fr_cnt += 1
 
                                 frame_f_path = './{:05d}.jpg'.format(fr_cnt)
-                                plt.savefig(frame_f_path)  
-                            
-                            # --- 绘制点迹连线
+                                plt.savefig(frame_f_path)
+
+                                # --- 绘制点迹连线
                             if j == 2:
                                 line_prepre_to_pre_0 = mlines.Line2D([plot_obj_prepre.x_, plot_obj_pre.x_],
                                                                      [plot_obj_prepre.y_, plot_obj_pre.y_])
@@ -702,19 +866,19 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
 
                                     frame_f_path = './{:05d}.jpg'.format(fr_cnt)
                                     plt.savefig(frame_f_path)
-                            
-                            line_pre_to_cur_0 = mlines.Line2D([plot_obj_pre.x_, plot_obj_cur.x_], 
+
+                            line_pre_to_cur_0 = mlines.Line2D([plot_obj_pre.x_, plot_obj_cur.x_],
                                                               [plot_obj_pre.y_, plot_obj_cur.y_])
                             # line_cur_to_nex_0 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], [plot_obj_cur.y_, plot_obj_nex.y_])
                             ax0.add_line(line_pre_to_cur_0)
                             # ax0.add_line(line_cur_to_nex_0)
 
-                            line_pre_to_cur_1 = mlines.Line2D([plot_obj_pre.x_, plot_obj_cur.x_], 
+                            line_pre_to_cur_1 = mlines.Line2D([plot_obj_pre.x_, plot_obj_cur.x_],
                                                               [plot_obj_pre.y_, plot_obj_cur.y_])
                             # line_cur_to_nex_1 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], [plot_obj_cur.y_, plot_obj_nex.y_])
                             ax1.add_line(line_pre_to_cur_1)
                             # ax1.add_line(line_cur_to_nex_1)
-                            
+
                             ## --- pausing
                             plt.pause(pause_time)
 
@@ -726,20 +890,20 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                                 plt.savefig(frame_f_path)
 
                             if j == win_edge - 1:
-                                line_cur_to_nex_0 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], 
+                                line_cur_to_nex_0 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_],
                                                                   [plot_obj_cur.y_, plot_obj_nex.y_])
                                 ax0.add_line(line_cur_to_nex_0)
-                                line_cur_to_nex_1 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], 
+                                line_cur_to_nex_1 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_],
                                                                   [plot_obj_cur.y_, plot_obj_nex.y_])
                                 ax1.add_line(line_cur_to_nex_1)
 
                                 ## --- pausing
                                 plt.pause(pause_time)
-    
+
                                 ## 存图
                                 if is_save:
                                     fr_cnt += 1
-    
+
                                     frame_f_path = './{:05d}.jpg'.format(fr_cnt)
                                     plt.savefig(frame_f_path)
 
@@ -789,7 +953,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                 line.remove()
             for line in ax1.lines:
                 line.remove()
-                
+
             # plt.ioff()
 
         # plt.show()
@@ -1021,7 +1185,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
             # logging
             for track in tracks:
-                print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i+1))
+                print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i + 1))
             print('Cycle {:d} correlation done.\n'.format(i + 1))
 
         # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
@@ -1031,6 +1195,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                                        tracks,
                                        init_phase_plots_state_dict,
                                        correlate_phase_plots_state_dict,
+                                       is_save=True,
                                        is_convert=True)
 
     else:
@@ -1067,4 +1232,4 @@ if __name__ == '__main__':
     # test_nn_plot_track_correlate(plots_f_path='./plots_in_each_cycle_1s.npy')
 
     ## 2021_03_16_14_43_05_plots_in_each_cycle_1s.npy
-    test_nn_plot_track_correlate(plots_f_path='./2021_03_16_15_02_22_plots_in_each_cycle_1s.npy')
+    test_nn_plot_track_correlate(plots_f_path='./2021_03_16_15_53_16_plots_in_each_cycle_1s.npy')
