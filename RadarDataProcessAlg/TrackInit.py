@@ -2,6 +2,8 @@
 
 import math
 import os
+import copy
+import time
 from collections import defaultdict
 from random import sample
 
@@ -234,12 +236,14 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
 
     # 运动模型: 匀(加)速直线
     # 生成航迹
+    old_direction = copy.deepcopy(direction)
     track = []
     for i in range(N):
         # ---------- 每个周期都加入一定的随机扰动(噪声)
         # 为航向增加随机噪声扰动
-        direction_noise = ((1 - (-1)) * np.random.random() + (-1)) * 10.0
+        direction_noise = ((1 - (-1)) * np.random.random() + (-1)) * 7.0
         direction += direction_noise
+        direction = direction if abs(direction - old_direction) <= 10.0 else old_direction
         direction = direction if direction >= 0.0 else direction + 360.0
         direction = direction if direction <= 360.0 else direction - 360.0
 
@@ -287,8 +291,7 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
         direction = np.random.rand() * 360
 
         # ---------- 生成一条航迹
-        track = gen_track_cv_ca(
-            N=N, v0=v0, a=a, direction=direction, cycle_time=1)
+        track = gen_track_cv_ca(N=N, v0=v0, a=a, direction=direction, cycle_time=cycle_time)
         # ----------
 
         tracks.append(track)
@@ -308,7 +311,7 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
         # 按照概率生成杂波点迹
         noise_plots = []
         for j in range(max_noise_num):
-            if probs[j] > 0.1:
+            if probs[j] > 0.06:
                 x = ((1 - (-1)) * np.random.random() + (-1)) * 35000.0
                 y = ((1 - (-1)) * np.random.random() + (-1)) * 35000.0
                 print(x, y)
@@ -326,30 +329,31 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
     # ----------
 
     # ---------- 序列化航迹数据到磁盘
+    date_time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    date_time_str = date_time_str.replace('-', '_').replace(' ', '_').replace(':', '_')
     # tracks = np.array(tracks)
     # print(tracks)
 
     # ----- 存为npy文件
     # 保存原始tracks文件
-    npz_save_path = './tracks_{:d}s'.format(cycle_time)
+    npz_save_path = './{:s}_tracks_{:d}s'.format(date_time_str, cycle_time)
     np.save(npz_save_path, tracks)
     print('{:s} saved.'.format(npz_save_path))
 
     # 保存含有杂波背景的航迹文件
-    npz_save_path = './plots_in_each_cycle_{:d}s'.format(cycle_time)
+    npz_save_path = './{:s}_plots_in_each_cycle_{:d}s'.format(date_time_str, cycle_time)
     np.save(npz_save_path, plots_in_each_cycle)
     print('{:s} saved.'.format(npz_save_path))
 
     # ----- 存为txt文件
 
-    return np.array(tracks)
+    return np.array(tracks), npz_save_path
 
 
 # ---------- Algorithms
 """
 航迹起始滑窗法的 m/n逻辑:
-如果这 N 次扫描中有某
-M 个观测值满足以下条件，那么启发式规则法就认定应起始一条航迹
+如果这 N 次扫描中有某M个观测值满足以下条件, 那么启发式规则法就认定应起始一条航迹
 """
 
 
@@ -1809,7 +1813,7 @@ def plot_plots_in_each_cycle(plots_f_path):
         for j in range(x.shape[0]):
             ax1.text(x[j], y[j], str(i))
 
-        plt.pause(0.5)
+        plt.pause(1e-5)
 
     # 绘图展示
     plt.show()
@@ -1922,12 +1926,12 @@ def plot_tracks(track_f_path):
 
 
 if __name__ == '__main__':
-    # tracks = gen_tracks(M=3, N=60, v0=340, a=20, cycle_time=1)
+    tracks, npz_save_path = gen_tracks(M=5, N=120, v0=340, a=10, cycle_time=1)
     # plot_tracks('./tracks_2_1s.npy')
 
     # test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=0)
 
-    plot_plots_in_each_cycle('./plots_in_each_cycle_1s.npy')
+    plot_plots_in_each_cycle('./{:s}.npy'.format(npz_save_path))
     # test_track_init_methods_with_bkg('./plots_in_each_cycle_1s.npy',
     #                                  cycle_time=1,
     #                                  method=2)

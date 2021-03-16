@@ -6,6 +6,7 @@ from collections import defaultdict, OrderedDict
 from random import sample
 
 import matplotlib.pyplot as plt
+import matplotlib.lines as mlines
 import numpy as np
 from tqdm import tqdm
 
@@ -197,7 +198,7 @@ def draw_plot_track_correspondence(cycle_time,
     :return:
     """
     # ---------- 雷达扫描绘图参数
-    pause_time = 0.05  # show a frame per 0.05s
+    pause_time = 0.01  # show a frame per 0.05s
     n_moves_per_cycle = cycle_time / pause_time  # 20 moves per cycle
     degrees_per_move = 360.0 / n_moves_per_cycle
     radians_per_move = degrees_per_move / math.pi
@@ -229,11 +230,10 @@ def draw_plot_track_correspondence(cycle_time,
         n_tracks = len(tracks)
         n_sample = n_tracks + len(PlotStates)
 
-        colors_noise = sample(colors[3:], len(PlotStates))
-        markers_noise = sample(markers[:3], len(PlotStates))
-
-        colors_track = sample(colors[:3], n_tracks)
-        markers_track = sample(markers[4:8], n_tracks)
+        colors_noise = 'y'
+        markers_noise = '*'
+        colors_track = sample(colors[:len(tracks)], n_tracks)
+        markers_track = 'o'  # sample(markers[4:8], n_tracks)
 
         # 绘制基础地图(极坐标系)
         fig = plt.figure(figsize=[18, 9], dpi=100)
@@ -249,7 +249,7 @@ def draw_plot_track_correspondence(cycle_time,
         ax0.set_title('polar')
 
         # 极坐标绘制雷达扫描指针
-        bar = ax0.bar(0, 50000, width=0.2, alpha=0.3, color='red', label='Radar scan')
+        bar = ax0.bar(0, 50000, width=0.35, alpha=0.3, color='red', label='Radar scan')
 
         ax1 = plt.subplot(122)
         ax1.set_xticks(np.arange(-50000, 50000, 10000))
@@ -288,7 +288,7 @@ def draw_plot_track_correspondence(cycle_time,
                     label = '$FreePlot(noise)$'
                 elif plot_obj.state_ == 1:  # 相关点迹
                     state = PlotStates[1]
-                    marker = markers_track[plot_obj.correlated_track_id_]
+                    marker = markers_track  # markers_track[plot_obj.correlated_track_id_]
                     color = colors_track[plot_obj.correlated_track_id_]
                     label = '$Track{:d}$'.format(plot_obj.correlated_track_id_)
                 elif plot_obj.state_ == 2:  # 孤立点迹(噪声)
@@ -341,8 +341,8 @@ def draw_plot_track_correspondence(cycle_time,
 
             # ----- 绘制雷达扫描指针
             bar.remove()
-            bar = ax0.bar(cycle * radians_per_move, 50000,
-                          width=0.2,
+            bar = ax0.bar(cycle * radians_per_move*5.0, 50000,
+                          width=0.35,
                           alpha=0.3,
                           color='red',
                           label='Radar scan')
@@ -378,7 +378,7 @@ def draw_plot_track_correspondence(cycle_time,
     # plt.show()
 
     ## 分步骤绘制算法过程
-    draw_slide_window(track=tracks[0], cycle_time=cycle_time, init_method=0)
+    draw_slide_window(track=tracks[0], cycle_time=cycle_time, init_method=1)
     is_convert = True
 
 
@@ -441,6 +441,11 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
         # ---------- 滑窗过程
         win_size = 6
         for i in tqdm(range(len(plot_locs) - win_size + 1)):
+            for line in ax0.lines:
+                line.remove()
+            for line in ax1.lines:
+                line.remove()
+
             # 取滑窗
             window = get_window(plot_locs, i, win_size)
             window = np.array(window, dtype=np.float32)
@@ -487,9 +492,13 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
 
             n_pass = 0
             for j in range(2, win_edge):
+
+
                 idx = i + j
                 plot_obj_pre = track.plots_[idx - 1]
                 plot_obj_cur = track.plots_[idx]
+                if j == 2:
+                    plot_obj_prepre = track.plots_[idx - 2]
                 
                 if method == 1 or method == 2:
                     plot_obj_nex = track.plots_[idx + 1]
@@ -622,7 +631,7 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                             # -- 绘制外推预测点迹(用虚线箭头)
                             arrow_extra = ax1.arrow(plot_obj_cur.x_, plot_obj_cur.y_,
                                                     x_extra - plot_obj_cur.x_, y_extra - plot_obj_cur.y_,
-                                                    width=5, ls='--')
+                                                    width=3, ls='--')
 
                             # -- 绘制外推点迹
                             dot_extra = ax1.scatter(int(x_extra), int(y_extra), c='m', marker='*', s=60)
@@ -672,7 +681,67 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
                                 fr_cnt += 1
 
                                 frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                                plt.savefig(frame_f_path)  
+                            
+                            # --- 绘制点迹连线
+                            if j == 2:
+                                line_prepre_to_pre_0 = mlines.Line2D([plot_obj_prepre.x_, plot_obj_pre.x_],
+                                                                     [plot_obj_prepre.y_, plot_obj_pre.y_])
+                                ax0.add_line(line_prepre_to_pre_0)
+
+                                line_prepre_to_pre_1 = mlines.Line2D([plot_obj_prepre.x_, plot_obj_pre.x_],
+                                                                     [plot_obj_prepre.y_, plot_obj_pre.y_])
+                                ax1.add_line(line_prepre_to_pre_1)
+
+                                ## --- pausing
+                                plt.pause(pause_time)
+
+                                ## 存图
+                                if is_save:
+                                    fr_cnt += 1
+
+                                    frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                                    plt.savefig(frame_f_path)
+                            
+                            line_pre_to_cur_0 = mlines.Line2D([plot_obj_pre.x_, plot_obj_cur.x_], 
+                                                              [plot_obj_pre.y_, plot_obj_cur.y_])
+                            # line_cur_to_nex_0 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], [plot_obj_cur.y_, plot_obj_nex.y_])
+                            ax0.add_line(line_pre_to_cur_0)
+                            # ax0.add_line(line_cur_to_nex_0)
+
+                            line_pre_to_cur_1 = mlines.Line2D([plot_obj_pre.x_, plot_obj_cur.x_], 
+                                                              [plot_obj_pre.y_, plot_obj_cur.y_])
+                            # line_cur_to_nex_1 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], [plot_obj_cur.y_, plot_obj_nex.y_])
+                            ax1.add_line(line_pre_to_cur_1)
+                            # ax1.add_line(line_cur_to_nex_1)
+                            
+                            ## --- pausing
+                            plt.pause(pause_time)
+
+                            ## 存图
+                            if is_save:
+                                fr_cnt += 1
+
+                                frame_f_path = './{:05d}.jpg'.format(fr_cnt)
                                 plt.savefig(frame_f_path)
+
+                            if j == win_edge - 1:
+                                line_cur_to_nex_0 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], 
+                                                                  [plot_obj_cur.y_, plot_obj_nex.y_])
+                                ax0.add_line(line_cur_to_nex_0)
+                                line_cur_to_nex_1 = mlines.Line2D([plot_obj_cur.x_, plot_obj_nex.x_], 
+                                                                  [plot_obj_cur.y_, plot_obj_nex.y_])
+                                ax1.add_line(line_cur_to_nex_1)
+
+                                ## --- pausing
+                                plt.pause(pause_time)
+    
+                                ## 存图
+                                if is_save:
+                                    fr_cnt += 1
+    
+                                    frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                                    plt.savefig(frame_f_path)
 
                             # 清除外推点迹
                             dot_extra.remove()
@@ -716,6 +785,11 @@ def draw_slide_window(track, cycle_time, padding=150, is_convert=True, init_meth
             scatter.remove()
             ax1.cla()
 
+            for line in ax0.lines:
+                line.remove()
+            for line in ax1.lines:
+                line.remove()
+                
             # plt.ioff()
 
         # plt.show()
@@ -947,7 +1021,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
 
             # logging
             for track in tracks:
-                print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i))
+                print('Track {:d} has {:d} plots correlated @cycle{:d}.'.format(track.id_, len(track.plots_), i+1))
             print('Cycle {:d} correlation done.\n'.format(i + 1))
 
         # ---------- 对完成所有cycle点迹-航迹关联的航迹进行动态可视化
@@ -982,6 +1056,7 @@ def test_nn_plot_track_correlate(plots_f_path):
 
     # 雷达扫描周期(s)
     cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
+    print('Cycle time: {:d}s'.format(cycle_time))
 
     # ---------- 点航相关
     nn_plot_track_correlate(plots_per_cycle, cycle_time, track_init_method=2)
@@ -989,4 +1064,7 @@ def test_nn_plot_track_correlate(plots_f_path):
 
 
 if __name__ == '__main__':
-    test_nn_plot_track_correlate(plots_f_path='./plots_in_each_cycle_1s.npy')
+    # test_nn_plot_track_correlate(plots_f_path='./plots_in_each_cycle_1s.npy')
+
+    ## 2021_03_16_14_43_05_plots_in_each_cycle_1s.npy
+    test_nn_plot_track_correlate(plots_f_path='./2021_03_16_15_02_22_plots_in_each_cycle_1s.npy')
