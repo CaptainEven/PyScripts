@@ -211,16 +211,16 @@ def draw_plot_track_correspondence(cycle_time,
     track_init_cycle = max([track.init_cycle_ for track in tracks])
 
     # 将两个阶段的plot对象信息字典合并
-    plots_state_dict = defaultdict(list)
+    plot_objs_per_cycle = defaultdict(list)
     for (k, v) in init_phase_plots_state_dict.items():
-        plots_state_dict[k].extend(v)
+        plot_objs_per_cycle[k].extend(v)
     for (k, v) in correlate_phase_plots_state_dict.items():
-        plots_state_dict[k].extend(correlate_phase_plots_state_dict[k])
+        plot_objs_per_cycle[k].extend(correlate_phase_plots_state_dict[k])
     # print(plots_state_dict)
 
     # 升序排列
-    plots_state_dict = sorted(plots_state_dict.items(),
-                              key=lambda x: x[0], reverse=False)
+    plot_objs_per_cycle = sorted(plot_objs_per_cycle.items(),
+                                 key=lambda x: x[0], reverse=False)
 
     def draw_correlation(is_save=True):
         """
@@ -228,8 +228,9 @@ def draw_plot_track_correspondence(cycle_time,
         :return:
         """
         # ---------- 绘图
-        marker_size = 12
-        txt_size = 10
+        marker_size = 20
+        txt_size = 15
+        col_w = 0.15
 
         n_tracks = len(tracks)
         n_sample = n_tracks + len(PlotStates)
@@ -239,36 +240,77 @@ def draw_plot_track_correspondence(cycle_time,
         colors_track = sample(colors[:len(tracks)], n_tracks)
         markers_track = 'o'  # sample(markers[4:8], n_tracks)
 
+        font_dict = {'family': 'SimHei',
+                     'style': 'normal',
+                     'weight': 'normal',
+                     'color': 'yellow',
+                     'size': txt_size
+                     }
+
         # 绘制基础地图(极坐标系)
         fig = plt.figure(figsize=[18, 9], dpi=100)
+        fig.patch.set_alpha(0.7)
         fig.suptitle('Radar')
+        gs = GridSpec(2, 2, figure=fig)
 
-        ax0 = plt.subplot(121, projection="polar")
+        ax0 = plt.subplot(gs[:, 0], projection="polar")
+        # ax0 = plt.subplot(121, projection="polar")
+        ax0.set_facecolor('#000000')
+        ax0.set_alpha(0.2)
         ax0.set_theta_zero_location('N')  # 'E', 'N'
         ax0.set_theta_direction(1)  # anti-clockwise
         ax0.set_rmin(10)
-        ax0.set_rmax(100000)
-        ax0.set_rticks(np.arange(-50000, 50000, 3000))
+        ax0.set_rmax(3500)
+        ax0.set_rticks(np.arange(-3500, 3500, 500))
         ax0.tick_params(labelsize=6)
         ax0.set_title('polar')
 
         # 极坐标绘制雷达扫描指针
-        bar = ax0.bar(0, 50000, width=0.35, alpha=0.3, color='red', label='Radar scan')
+        bar = ax0.bar(0, 3000, width=0.35, alpha=0.3, color='green', label='Radar scan')
 
-        ax1 = plt.subplot(122)
-        ax1.set_xticks(np.arange(-50000, 50000, 10000))
-        ax1.set_yticks(np.arange(-50000, 50000, 10000))
+        ax1 = plt.subplot(gs[0, 1])
+        ax1.axis('tight')
+        ax1.axis('off')
+        ax1.set_title('Track 0 plots')
+        ax2 = plt.subplot(gs[1, 1])
+        ax2.axis('tight')
+        ax2.axis('off')
+        ax2.set_title('Track 1 plots')
+        axes_trs = [ax1, ax2]
+        col_labels = ['PlotID', 'Direction', 'Distance', 'Velocity', 'Acceleration', 'Heading']
 
-        # 绘制坐标轴
-        # ax1.axis()
-        ax1.axhline(y=0, linestyle="-", linewidth=1.8, c="green")
-        ax1.axvline(x=0, linestyle="-", linewidth=1.8, c="green")
+        # 构建track的点迹状态数组
+        track_stats = np.full((len(tracks), len(plot_objs_per_cycle), len(col_labels)), -1.0, dtype=np.float32)
+        # for i, track in enumerate(tracks):
+        #     for j, plot in enumerate(track.plots_):
+        #         plot.cart_to_polar()
+        #         track_stats[i][j][0] = plot.theta_
+        #         track_stats[i][j][1] = plot.r_
+        #         track_stats[i][j][2] = plot.v_
+        #         track_stats[i][j][3] = plot.a_
+        #         track_stats[i][j][4] = plot.heading_
+        # print(track_stats)
 
-        # 绘制坐标轴箭头
-        # ax1.arrow(x=0, y=0, dx=50000, dy=0, width=1.5, fc='red', ec='blue', alpha=0.3)
+        # 测试表格
+        stat_table_tr0 = ax1.table(cellText=track_stats[0], colLabels=col_labels,
+                                   loc='center', colWidths=[col_w, col_w, col_w, col_w, col_w, col_w])
+        stat_table_tr1 = ax1.table(cellText=track_stats[1], colLabels=col_labels,
+                                   loc='center', colWidths=[col_w, col_w, col_w, col_w, col_w, col_w])
 
-        ax1.tick_params(labelsize=7)
-        ax1.set_title('cartesian')
+        # ax1.subplot(122)
+        # ax1.set_xticks(np.arange(-5000, 5000, 1000))
+        # ax1.set_yticks(np.arange(-5000, 5000, 1000))
+
+        # # 绘制坐标轴
+        # # ax1.axis()
+        # ax1.axhline(y=0, linestyle="-", linewidth=1.8, c="green")
+        # ax1.axvline(x=0, linestyle="-", linewidth=1.8, c="green")
+
+        # # 绘制坐标轴箭头
+        # # ax1.arrow(x=0, y=0, dx=50000, dy=0, width=1.5, fc='red', ec='blue', alpha=0.3)
+
+        # ax1.tick_params(labelsize=7)
+        # ax1.set_title('cartesian')
 
         free_noise_legended = False
         isolated_noise_legended = False
@@ -278,19 +320,19 @@ def draw_plot_track_correspondence(cycle_time,
         cycle_noise_txts = []
 
         # 两层for循环遍历每一个cycle的每一个点迹(关联点迹或噪声点迹)
-        for cycle, plots_state in tqdm(plots_state_dict):
-            if len(cycle_noise_dots) > 0:
-                for noise_dot, txt in zip(cycle_noise_dots, cycle_noise_txts):
-                    noise_dot.remove()
-                    txt.remove()
-                cycle_noise_dots = []
-                cycle_noise_txts = []
+        for cycle, cycle_plot_objs in tqdm(plot_objs_per_cycle):
+            # if len(cycle_noise_dots) > 0:
+            #     for noise_dot, txt in zip(cycle_noise_dots, cycle_noise_txts):
+            #         noise_dot.remove()
+            #         txt.remove()
+            #     cycle_noise_dots = []
+            #     cycle_noise_txts = []
 
-            for k, plot_obj in enumerate(plots_state):
+            for k, plot_obj in enumerate(cycle_plot_objs):
                 if plot_obj.state_ == 0:  # 自由点迹(噪声)
                     state = PlotStates[0]
                     marker = markers_noise[0]
-                    color = colors_noise[0]
+                    color = colors_noise
                     label = '$FreePlot(noise)$'
                 elif plot_obj.state_ == 1:  # 相关点迹
                     state = PlotStates[1]
@@ -300,7 +342,7 @@ def draw_plot_track_correspondence(cycle_time,
                 elif plot_obj.state_ == 2:  # 孤立点迹(噪声)
                     state = PlotStates[2]
                     marker = markers_noise[1]
-                    color = colors_noise[1]
+                    color = colors_noise
                     label = '$IsolatedPlot(noise)$'
 
                 # 笛卡尔坐标
@@ -316,42 +358,96 @@ def draw_plot_track_correspondence(cycle_time,
                 # 绘制极坐标点迹
                 if state == 'Related':
                     type0 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
-                    if cycle == track_init_cycle:
-                        txt = 'Track' + str(plot_obj.correlated_track_id_)
-                        ax0.text(theta, r, txt, fontsize=txt_size)
 
-                    if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
-                        ax0.text(theta, r, str(cycle + 1), fontsize=txt_size)
+                    # 绘制航迹标签
+                    if cycle == 0:
+                        txt = 'Track' + str(plot_obj.correlated_track_id_)
+                        ax0.text(theta, r, txt,
+                                 fontsize=font_dict['size'],
+                                 color=font_dict['color'])
+
+                    # if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                    #     ax0.text(theta, r, str(cycle + 1),
+                    #              fontsize=font_dict['size'],
+                    #              color=font_dict['color'])
+                    ax0.text(theta, r, str(plot_obj.plot_id_),
+                             fontsize=font_dict['size'],
+                             color=font_dict['color'])
                 elif state == 'Free' or state == 'Isolated':
+                    if r < -3000 or r > 3000:
+                        continue
+                    
                     type1 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
                     cycle_noise_dots.append(type1)  # 记录当前扫描周期的噪声点
 
-                    type1_txt = ax0.text(theta, r, str(cycle + 1), fontsize=txt_size)
-                    cycle_noise_txts.append(type1_txt)  # 记录当前扫描周期的噪声点标签
+                    # type1_txt = ax0.text(theta, r, str(cycle + 1),
+                    #                      fontsize=font_dict['size'],
+                    #                      color=font_dict['color'])
+                    # cycle_noise_txts.append(type1_txt)  # 记录当前扫描周期的噪声点标签
 
-                # 绘制笛卡尔坐标
-                ax1.scatter(x, y, c=color, marker=marker, s=marker_size)
+                ## 绘制笛卡尔坐标
+                # ax1.scatter(x, y, c=color, marker=marker, s=marker_size)
 
-                if state == 'Related' and cycle == track_init_cycle:
+                if state == 'Related' and cycle == 0:
                     txt = 'Track' + str(plot_obj.correlated_track_id_)
-                    ax1.text(x, y, txt, fontsize=txt_size)
+                    # ax1.text(x, y, txt,
+                    #          fontsize=font_dict['size'],
+                    #          color=font_dict['color'])
+
+                    # 更新表格数据
+                    # stat_table_tr0.remove()
 
                 if state == 'Related':
-                    if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
-                        ax1.text(x, y, str(cycle + 1), fontsize=txt_size)
-                elif state == 'Free' or state == 'Isolated':
-                    ax1.text(x, y, str(cycle + 1), fontsize=txt_size)
+                    # stat_table_tr0.remove()
+                    # stat_table_tr1.remove()
+
+                    plot_obj.cart_to_polar()
+                    i = plot_obj.correlated_track_id_
+                    j = plot_obj.cycle_
+                    track_stats[i][j][0] = plot_obj.plot_id_
+                    track_stats[i][j][1] = plot_obj.theta_
+                    track_stats[i][j][2] = plot_obj.r_
+                    track_stats[i][j][3] = plot_obj.v_
+                    track_stats[i][j][4] = plot_obj.a_
+                    track_stats[i][j][5] = plot_obj.heading_
+                    stat_table_tr0 = axes_trs[i].table(cellText=track_stats[i], colLabels=col_labels,
+                                                       loc='center',
+                                                       colWidths=[col_w, col_w, col_w, col_w, col_w, col_w])
+
+                    # ## ----- 暂停: 动态展示当前雷达扫描周期
+                    # plt.pause(pause_time)
+
+                # ----- 绘制雷达扫描指针
+                bar.remove()
+                bar = ax0.bar(radians_per_move * cycle, 3000,
+                              width=0.35,
+                              alpha=0.3,
+                              color='yellow',
+                              label='Radar scan')
+                # if state == 'Related':
+                #     if cycle == track_init_cycle or (cycle + 1) % 10 == 0:
+                #         ax1.text(x, y, str(cycle + 1),
+                #                  fontsize=font_dict['size'],
+                #                  color=font_dict['color'])
+                # elif state == 'Free' or state == 'Isolated':
+                #     ax1.text(x, y, str(cycle + 1),
+                #              fontsize=font_dict['size'],
+                #              color=font_dict['color'])
 
             if cycle == track_init_cycle:
                 ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
 
-            # ----- 绘制雷达扫描指针
-            bar.remove()
-            bar = ax0.bar(cycle * radians_per_move * 5.0, 50000,
-                          width=0.35,
-                          alpha=0.3,
-                          color='red',
-                          label='Radar scan')
+            # # ----- 绘制雷达扫描指针
+            # bar.remove()
+            # bar = ax0.bar(cycle * radians_per_move, 3000,
+            #               width=0.35,
+            #               alpha=0.3,
+            #               color='yellow',
+            #               label='Radar scan')
+
+            # # 测试表格
+            # the_table = ax1.table(cellText=track_stats[0], colLabels=col_labels,
+            #                       loc='center', colWidths=[0.1, 0.1, 0.1, 0.1, 0.1])
 
             ## ----- 暂停: 动态展示当前雷达扫描周期
             plt.pause(pause_time)
@@ -363,7 +459,7 @@ def draw_plot_track_correspondence(cycle_time,
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图
-    # draw_correlation(is_save=True)
+    draw_correlation(is_save=True)
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
@@ -385,12 +481,12 @@ def draw_plot_track_correspondence(cycle_time,
 
     # plt.show()
 
-    ## 分步骤绘制算法过程
+    # ## 分步骤绘制算法过程
     # draw_slide_window(track=tracks[0], cycle_time=cycle_time, init_method=1)
-    is_convert = True
+    # is_convert = True
 
     ## 绘制点-航相关
-    draw_plot_track_relate(plots_state_dict, tracks)
+    # draw_plot_track_relate(plots_state_dict, tracks)
 
 
 def get_window(arr, start, win_size):
@@ -417,7 +513,7 @@ def draw_plot_track_relate(plots_objs_per_cycle, tracks, σ_s=160):
     n_tracks = len(tracks)
     n_sample = n_tracks + len(PlotStates)
 
-    colors_noise = 'y'
+    colors_noise = 'gray'
     markers_noise = '*'
     colors_track = sample(colors[:len(tracks)], n_tracks)
     markers_track = 'o'  # sample(markers[4:8], n_tracks)
@@ -1140,6 +1236,9 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                         # 点迹-航迹直接相关
                         track.add_plot(obs_plot_obj)
 
+                        # 更新关联点迹在航迹中的编号
+                        obs_plot_obj.plot_id_ = track.plots_.index(obs_plot_obj)
+
                         # 更新点迹属性
                         obs_plot_obj.state_ = 1  # 'Related'
                         obs_plot_obj.correlated_track_id_ = track.id_
@@ -1158,6 +1257,9 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                     min_idx = ma_dists.index(min_ma_dist)
                     obs_plot_obj = can_plot_objs[min_idx]
                     track.add_plot(obs_plot_obj)
+
+                    # 更新关联点迹在航迹中的编号
+                    obs_plot_obj.plot_id_ = track.plots_.index(obs_plot_obj)
 
                     # 更新点迹属性
                     obs_plot_obj.state_ = 1  # 'Related'
@@ -1220,7 +1322,7 @@ def test_nn_plot_track_correlate(plots_f_path):
         return
 
     # 雷达扫描周期(s)
-    cycle_time = int(plots_f_path.split('_')[-1].split('.')[0][:-1])
+    cycle_time = int(plots_f_path.split('_')[-2].split('.')[0][:-1])
     print('Cycle time: {:d}s'.format(cycle_time))
 
     # ---------- 点航相关
@@ -1231,5 +1333,5 @@ def test_nn_plot_track_correlate(plots_f_path):
 if __name__ == '__main__':
     # test_nn_plot_track_correlate(plots_f_path='./plots_in_each_cycle_1s.npy')
 
-    ## 2021_03_16_14_43_05_plots_in_each_cycle_1s.npy
-    test_nn_plot_track_correlate(plots_f_path='./2021_03_16_15_53_16_plots_in_each_cycle_1s.npy')
+    ## ./2021_03_17_11_04_12_plots_in_each_cycle_1s_10cycle
+    test_nn_plot_track_correlate(plots_f_path='./2021_03_17_11_04_12_plots_in_each_cycle_1s_10cycle.npy')

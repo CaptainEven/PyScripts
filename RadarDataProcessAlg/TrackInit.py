@@ -32,7 +32,9 @@ markers = [
 ]
 
 colors = [
-    'b',
+    'blue',
+    'green',
+    'b'
     'g',
     'r',
     'c',
@@ -80,11 +82,17 @@ class Plot(object):
         self.a_ = a
         self.heading_ = heading
 
+        self.r_ = -1
+        self.theta_ = -1
+
         # 点迹类型: 初始化为'自由'点迹
         self.state_ = 0
 
         # 点迹关联的track id
         self.correlated_track_id_ = -1
+
+        # 在航迹中的编号
+        self.plot_id_ = -1
 
     def set_state(self, state):
         """
@@ -92,6 +100,18 @@ class Plot(object):
         :return:
         """
         self.state_ = state
+    
+    def cart_to_polar(self):
+        # 笛卡尔坐标
+        x, y = self.x_, self.y_
+
+        # 计算极径
+        self.r_ = np.sqrt(x * x + y * y)
+
+        # 计算极角
+        self.theta_ = np.arctan2(y, x)
+        self.theta_ = self.theta_ if self.theta_ >= 0.0 else self.theta_ + np.pi * 2.0
+        self.theta_ = math.degrees(self.theta_)
 
     def __sub__(self, plot):
         """
@@ -210,17 +230,17 @@ def gen_track_cv_ca(N=20, v0=340.0, a=0.0, direction=225, cycle_time=1.0):
     # degree = np.random.rand() * 360
 
     # 随即起始坐标
-    x0 = np.random.randint(-50000, 50000)
-    y0 = np.random.randint(-50000, 50000)
+    x0 = np.random.randint(-5000, 5000)
+    y0 = np.random.randint(-5000, 5000)
     while 1:
-        if ((x0 > -45000 and x0 < 45000) or (x0 > -45000 and x0 < 45000)) \
-                and ((y0 > -45000 and y0 < 45000) or (y0 > -45000 and y0 < 45000)):
+        if (((x0 < -1500 and x0 > -1800) or (x0 > 1500 and x0 < 1800)) \
+            and ((y0 < -1500 and y0 > -1800) or (y0 > 1500 and y0 < 1800))):
             break
         else:
             # x0 = 30000
             # y0 = 35000
-            x0 = np.random.randint(-50000, 50000)
-            y0 = np.random.randint(-50000, 50000)
+            x0 = np.random.randint(-5000, 5000)
+            y0 = np.random.randint(-5000, 5000)
     print('X0Y0: [{:d}, {:d}]'.format(x0, y0))
 
     # 根据起始坐标(判断其所在笛卡尔坐标象限)设置direction
@@ -311,9 +331,9 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
         # 按照概率生成杂波点迹
         noise_plots = []
         for j in range(max_noise_num):
-            if probs[j] > 0.06:
-                x = ((1 - (-1)) * np.random.random() + (-1)) * 35000.0
-                y = ((1 - (-1)) * np.random.random() + (-1)) * 35000.0
+            if probs[j] > 0.15:
+                x = ((1 - (-1)) * np.random.random() + (-1)) * 3000.0
+                y = ((1 - (-1)) * np.random.random() + (-1)) * 3000.0
                 print(x, y)
                 noise_plots.append([x, y])
 
@@ -324,6 +344,7 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
             plots_in_each_cycle.append(plot_list)
         else:
             plots_in_each_cycle.append(plots)
+
     plots_in_each_cycle = np.array(plots_in_each_cycle)
     print(plots_in_each_cycle)
     # ----------
@@ -341,7 +362,7 @@ def gen_tracks(M=3, N=60, v0=340, a=10, cycle_time=1):
     print('{:s} saved.'.format(npz_save_path))
 
     # 保存含有杂波背景的航迹文件
-    npz_save_path = './{:s}_plots_in_each_cycle_{:d}s'.format(date_time_str, cycle_time)
+    npz_save_path = './{:s}_plots_in_each_cycle_{:d}s_{:d}cycle'.format(date_time_str, cycle_time, N)
     np.save(npz_save_path, plots_in_each_cycle)
     print('{:s} saved.'.format(npz_save_path))
 
@@ -1364,6 +1385,7 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                     plot.state_ = 1  # 'Related'
                     plot.correlated_track_id_ = track.id_
                     track.add_plot(plot)
+                    plot.plot_id_ = track.plots_.index(plot)  # # 更新关联点迹在航迹中的编号
                     track.quality_counter_ += 1  # 航迹质量得分更新
                 tracks.append(track)
                 # -----
@@ -1926,7 +1948,7 @@ def plot_tracks(track_f_path):
 
 
 if __name__ == '__main__':
-    tracks, npz_save_path = gen_tracks(M=5, N=120, v0=340, a=10, cycle_time=1)
+    tracks, npz_save_path = gen_tracks(M=2, N=10, v0=340, a=10, cycle_time=1)
     # plot_tracks('./tracks_2_1s.npy')
 
     # test_track_init_methods('../tracks_2_1s.npy', cycle_time=1, method=0)
