@@ -367,6 +367,9 @@ def draw_plot_track_correspondence(cycle_time,
         cycle_noise_dots = []
         cycle_noise_txts = []
 
+        cycle_dots_extra = []  # 记录一个cycle的外推点
+        cycle_ccs_relate = []    # 记录一个cycle的相关波门
+
         # 两层for循环遍历每一个cycle的每一个点迹(关联点迹或噪声点迹)
         for cycle, cycle_plot_objs in tqdm(plot_objs_per_cycle):
             # if len(cycle_noise_dots) > 0:
@@ -375,6 +378,13 @@ def draw_plot_track_correspondence(cycle_time,
             #         txt.remove()
             #     cycle_noise_dots = []
             #     cycle_noise_txts = []
+            if len(cycle_dots_extra) > 0 and len(cycle_dots_extra) == len(cycle_ccs_relate):
+                for dot, circle in zip(cycle_dots_extra, cycle_ccs_relate):
+                    dot.remove()
+                    circle.remove()
+
+                cycle_dots_extra = []  # 记录一个cycle的外推点
+                cycle_ccs_relate = []    # 记录一个cycle的相关波门
 
             for k, plot_obj in enumerate(cycle_plot_objs):
                 if plot_obj.state_ == 0:  # 自由点迹(噪声)
@@ -468,6 +478,10 @@ def draw_plot_track_correspondence(cycle_time,
                         cur_plot = plot_obj
                         pre_plot = tracks[i].plots_[cur_id - 1]
 
+                        # 判断是否存在下一个相关点迹
+                        if cur_id < len(tracks[i].plots_) - 1:
+                            nex_plot = tracks[i].plots_[cur_id + 1]
+
                         ## 计算初始波门(环形波门的两个半径)
                         r_min = v0 * cycle_time * min_ratio  # 小半径
                         r_max = v0 * cycle_time * max_ratio  # 大半径
@@ -498,17 +512,19 @@ def draw_plot_track_correspondence(cycle_time,
 
                         # 计算(直线)外推点
                         x_extra, y_extra = extrapolate_plot([pre_plot.x_, pre_plot.y_], [cur_plot.x_, cur_plot.y_], s)
-                        r, t = cart_to_polar(x_extra, y_extra)
-                        x_extra_, y_extra_ = pseudo_xy_in_polar(r, t)
+                        r_extra, t_extra = cart_to_polar(x_extra, y_extra)
+                        x_extra_, y_extra_ = pseudo_xy_in_polar(r_extra, t_extra)
+                        cur_plot.cart_to_polar()
                         x_cur_, y_cur_ = pseudo_xy_in_polar(cur_plot.r_, cur_plot.theta_)
 
-                        arrow_extra = ax0.arrow(x_pre_, y_pre_,
+                        # --- 绘制外推箭头连线
+                        arrow_extra = ax0.arrow(x_cur_, y_cur_,
                                                 x_extra_ - x_cur_, y_extra_ - y_cur_,
-                                                width=2, 
+                                                width=2,
                                                 ls='--',
                                                 color='yellow',
                                                 transform=ax0.transData._b)
-                        
+
                         ## 暂停显示中间步骤
                         plt.pause(pause_time)
                         if is_save:
@@ -517,6 +533,37 @@ def draw_plot_track_correspondence(cycle_time,
                             fr_cnt += 1
 
                         arrow_extra.remove()
+
+                        # --- 绘制外推点迹
+                        dot_extra = ax0.scatter(t_extra, r_extra, c='white', marker='D', s=marker_size)
+
+                        ## 暂停显示中间步骤
+                        plt.pause(pause_time)
+                        if is_save:
+                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                            plt.savefig(frame_f_path)
+                            fr_cnt += 1
+
+                        # --- 绘制相关波门
+                        if cur_id < len(tracks[i].plots_) - 1:
+                            nex_plot.cart_to_polar()
+                            x_nex_, y_nex_ = pseudo_xy_in_polar(nex_plot.r_, nex_plot.theta_)
+    
+                            cc_relate = plt.Circle((x_nex_, y_nex_),
+                                                   radius=r_min, color='g', fill=False, transform=ax0.transData._b)
+                            ax0.add_patch(cc_relate)
+
+                        ## 暂停显示中间步骤
+                        plt.pause(pause_time)
+                        if is_save:
+                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                            plt.savefig(frame_f_path)
+                            fr_cnt += 1
+
+                        # dot_extra.remove()
+                        # cc_relate.remove()
+                        cycle_dots_extra.append(dot_extra)
+                        cycle_ccs_relate.append(cc_relate)
 
                 # ----- 绘制雷达扫描指针
                 bar.remove()
@@ -568,7 +615,7 @@ def draw_plot_track_correspondence(cycle_time,
         jpg_f_list = [x for x in os.listdir('./') if x.endswith('.jpg')]
         if len(jpg_f_list) > 0:
             out_video_path = './scan.mp4'
-            cmd_str = 'ffmpeg -f image2 -r 6 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+            cmd_str = 'ffmpeg -f image2 -r 1 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
                 .format('.', out_video_path)
             os.system(cmd_str)
 
