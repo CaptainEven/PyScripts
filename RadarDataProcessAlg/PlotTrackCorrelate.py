@@ -189,24 +189,41 @@ def pseudo_xy_in_polar(r, theta):
     :param theta:
     :return:
     """
-    if theta >= 0 and theta < np.pi * 0.5:         # 第二象限
+    if theta >= 0 and theta < np.pi * 0.5:  # 第二象限
         angle = np.pi * 0.5 - theta
         x = -r * math.cos(angle)
-        y =  r * math.sin(angle)
-    elif theta >= np.pi * 0.5 and theta < np.pi:   # 第三象限
-        angle = theta - ni.pi * 0.5
+        y = r * math.sin(angle)
+    elif theta >= np.pi * 0.5 and theta < np.pi:  # 第三象限
+        angle = theta - np.pi * 0.5
         x = -r * math.cos(angle)
         y = -r * math.sin(angle)
-    elif theta >= np.pi and theta < np.pi * 1.5:   # 第四象限
+    elif theta >= np.pi and theta < np.pi * 1.5:  # 第四象限
         angle = np.pi * 1.5 - theta
-        x =  r * math.cos(angle)
+        x = r * math.cos(angle)
         y = -r * math.sin(angle)
-    else:                                          # 第一象限
+    else:  # 第一象限
         angle = theta - np.pi * 1.5
         x = r * math.cos(angle)
         y = r * math.sin(angle)
 
     return x, y
+
+
+def cart_to_polar(x, y):
+    """
+    :param x:
+    :param y:
+    :return:
+    """
+    # 计算极径
+    r = np.sqrt(x * x + y * y)
+
+    # 计算极角
+    theta = np.arctan2(y, x)
+    theta = theta if theta >= 0.0 else theta + np.pi * 2.0
+
+    return r, theta
+
 
 ## ---------- visualization
 def draw_plot_track_correspondence(cycle_time,
@@ -254,8 +271,9 @@ def draw_plot_track_correspondence(cycle_time,
         :return:
         """
         v0 = 340
-        min_ratio = 0.2
-        max_ratio = 2.0
+        min_ratio = 0.5
+        max_ratio = 1.5
+        fr_cnt = 0  # 存帧计数
 
         # ---------- 绘图
         marker_size = 20
@@ -454,15 +472,51 @@ def draw_plot_track_correspondence(cycle_time,
                         r_min = v0 * cycle_time * min_ratio  # 小半径
                         r_max = v0 * cycle_time * max_ratio  # 大半径
 
-                        x_, y_ = pseudo_xy_in_polar(pre_plot.r_, pre_plot.theta_)
-                        cc_max = plt.Circle((x_, y_),
-                                            radius=r_max, color='g', fill=False, transform=ax0.transProjectionAffine + ax0.transAxes)
-                        cc_min = plt.Circle((x_, y_),
-                                            radius=r_min, color='g', fill=False, transform=ax0.transProjectionAffine + ax0.transAxes)
+                        # 获取极坐标下的x,y坐标
+                        x_pre_, y_pre_ = pseudo_xy_in_polar(pre_plot.r_, pre_plot.theta_)
+                        cc_max = plt.Circle((x_pre_, y_pre_),
+                                            radius=r_max, color='g', fill=False, transform=ax0.transData._b)
+                        cc_min = plt.Circle((x_pre_, y_pre_),
+                                            radius=r_min, color='g', fill=False, transform=ax0.transData._b)
                         ax0.add_patch(cc_min)
                         ax0.add_patch(cc_max)
 
-                        pass
+                        ## 暂停显示中间步骤
+                        plt.pause(pause_time)
+                        if is_save:
+                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                            plt.savefig(frame_f_path)
+                            fr_cnt += 1
+
+                        cc_min.remove()
+                        cc_max.remove()
+
+                        ## ----- 绘制外推点坐标和箭头
+                        # 计算外推点坐标
+                        # 预测位移值
+                        s = cur_plot.v_ * cycle_time + 0.5 * cur_plot.a_ * cycle_time * cycle_time
+
+                        # 计算(直线)外推点
+                        x_extra, y_extra = extrapolate_plot([pre_plot.x_, pre_plot.y_], [cur_plot.x_, cur_plot.y_], s)
+                        r, t = cart_to_polar(x_extra, y_extra)
+                        x_extra_, y_extra_ = pseudo_xy_in_polar(r, t)
+                        x_cur_, y_cur_ = pseudo_xy_in_polar(cur_plot.r_, cur_plot.theta_)
+
+                        arrow_extra = ax0.arrow(x_pre_, y_pre_,
+                                                x_extra_ - x_cur_, y_extra_ - y_cur_,
+                                                width=2, 
+                                                ls='--',
+                                                color='yellow',
+                                                transform=ax0.transData._b)
+                        
+                        ## 暂停显示中间步骤
+                        plt.pause(pause_time)
+                        if is_save:
+                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
+                            plt.savefig(frame_f_path)
+                            fr_cnt += 1
+
+                        arrow_extra.remove()
 
                 # ----- 绘制雷达扫描指针
                 bar.remove()
@@ -501,8 +555,9 @@ def draw_plot_track_correspondence(cycle_time,
 
             ## ----- 存放每一个cycle的图
             if is_save:
-                frame_f_path = './{:05d}.jpg'.format(cycle)
+                frame_f_path = './{:05d}.jpg'.format(fr_cnt)
                 plt.savefig(frame_f_path)
+                fr_cnt += 1
             # print('Cycle {:d} done.'.format(cycle + 1))
 
     # 调用绘图

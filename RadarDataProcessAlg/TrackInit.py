@@ -111,7 +111,7 @@ class Plot(object):
         # 计算极角
         self.theta_ = np.arctan2(y, x)
         self.theta_ = self.theta_ if self.theta_ >= 0.0 else self.theta_ + np.pi * 2.0
-        self.theta_ = math.degrees(self.theta_)
+        self.degrees_ = math.degrees(self.theta_)
 
     def __sub__(self, plot):
         """
@@ -776,7 +776,7 @@ def direct_method(track, cycle_time, v_min, v_max, a_max, angle_max, m=3, n=4):
     return succeed, start_cycle
 
 
-def start_gate_check(cycle_time, plot_pre, plot_cur, v0, min_ratio=0.1, max_ratio=2.5):
+def start_gate_check(cycle_time, plot_pre, plot_cur, v0=340, min_ratio=0.1, max_ratio=2.5):
     """
     用速度法建立起始波门
     :param cycle_time:
