@@ -182,6 +182,32 @@ def compute_ma_dist(cov_mat, can_plot_obj, plot_pred):
     return ma_dist
 
 
+def pseudo_xy_in_polar(r, theta):
+    """
+    0(360) point to North
+    :param r:
+    :param theta:
+    :return:
+    """
+    if theta >= 0 and theta < np.pi * 0.5:         # 第二象限
+        angle = np.pi * 0.5 - theta
+        x = -r * math.cos(angle)
+        y =  r * math.sin(angle)
+    elif theta >= np.pi * 0.5 and theta < np.pi:   # 第三象限
+        angle = theta - ni.pi * 0.5
+        x = -r * math.cos(angle)
+        y = -r * math.sin(angle)
+    elif theta >= np.pi and theta < np.pi * 1.5:   # 第四象限
+        angle = np.pi * 1.5 - theta
+        x =  r * math.cos(angle)
+        y = -r * math.sin(angle)
+    else:                                          # 第一象限
+        angle = theta - np.pi * 1.5
+        x = r * math.cos(angle)
+        y = r * math.sin(angle)
+
+    return x, y
+
 ## ---------- visualization
 def draw_plot_track_correspondence(cycle_time,
                                    plots_per_cycle,
@@ -227,6 +253,10 @@ def draw_plot_track_correspondence(cycle_time,
         :param is_save:
         :return:
         """
+        v0 = 340
+        min_ratio = 0.2
+        max_ratio = 2.0
+
         # ---------- 绘图
         marker_size = 20
         txt_size = 15
@@ -376,7 +406,7 @@ def draw_plot_track_correspondence(cycle_time,
                 elif state == 'Free' or state == 'Isolated':
                     if r < -3000 or r > 3000:
                         continue
-                    
+
                     type1 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
                     cycle_noise_dots.append(type1)  # 记录当前扫描周期的噪声点
 
@@ -405,7 +435,7 @@ def draw_plot_track_correspondence(cycle_time,
                     i = plot_obj.correlated_track_id_
                     j = plot_obj.cycle_
                     track_stats[i][j][0] = plot_obj.plot_id_
-                    track_stats[i][j][1] = plot_obj.theta_
+                    track_stats[i][j][1] = plot_obj.degrees_
                     track_stats[i][j][2] = plot_obj.r_
                     track_stats[i][j][3] = plot_obj.v_
                     track_stats[i][j][4] = plot_obj.a_
@@ -414,8 +444,25 @@ def draw_plot_track_correspondence(cycle_time,
                                                        loc='center',
                                                        colWidths=[col_w, col_w, col_w, col_w, col_w, col_w])
 
-                    # ## ----- 暂停: 动态展示当前雷达扫描周期
-                    # plt.pause(pause_time)
+                    ## 绘制点-航相关过程
+                    if cycle > 0:
+                        cur_id = tracks[i].plots_.index(plot_obj)
+                        cur_plot = plot_obj
+                        pre_plot = tracks[i].plots_[cur_id - 1]
+
+                        ## 计算初始波门(环形波门的两个半径)
+                        r_min = v0 * cycle_time * min_ratio  # 小半径
+                        r_max = v0 * cycle_time * max_ratio  # 大半径
+
+                        x_, y_ = pseudo_xy_in_polar(pre_plot.r_, pre_plot.theta_)
+                        cc_max = plt.Circle((x_, y_),
+                                            radius=r_max, color='g', fill=False, transform=ax0.transProjectionAffine + ax0.transAxes)
+                        cc_min = plt.Circle((x_, y_),
+                                            radius=r_min, color='g', fill=False, transform=ax0.transProjectionAffine + ax0.transAxes)
+                        ax0.add_patch(cc_min)
+                        ax0.add_patch(cc_max)
+
+                        pass
 
                 # ----- 绘制雷达扫描指针
                 bar.remove()
