@@ -32,8 +32,8 @@ markers = [
 ]
 
 colors = [
-    'blue',
-    'green',
+    '#d9afff',
+    '#94f4c9',
     'b'
     'g',
     'r',

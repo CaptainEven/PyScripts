@@ -304,7 +304,7 @@ def draw_plot_track_correspondence(cycle_time,
         fig = plt.figure(figsize=[18, 9], dpi=100)
         fig.patch.set_facecolor('black')
         # fig.patch.set_alpha(0.95)
-        fig.suptitle('雷达扫描实时数据')
+        fig.suptitle('雷达扫描实时数据', color='white')
         gs = GridSpec(2, 2, figure=fig)
 
         ax0 = plt.subplot(gs[:, 0], projection="polar")
@@ -317,7 +317,7 @@ def draw_plot_track_correspondence(cycle_time,
         ax0.set_rmax(3500)
         ax0.set_rticks(np.arange(-3500, 3500, 500))
         ax0.tick_params(labelsize=12, colors='gold')
-        ax0.set_title('雷达极坐标')
+        ax0.set_title('雷达极坐标', color='white')
         # ax0.imshow(bkg)
 
         # 极坐标绘制雷达扫描指针
@@ -326,11 +326,11 @@ def draw_plot_track_correspondence(cycle_time,
         ax1 = plt.subplot(gs[0, 1])
         ax1.axis('tight')
         ax1.axis('off')
-        ax1.set_title('航迹0关联点迹')
+        ax1.set_title('航迹0关联点迹', color='white')
         ax2 = plt.subplot(gs[1, 1])
         ax2.axis('tight')
         ax2.axis('off')
-        ax2.set_title('航迹1关联点迹')
+        ax2.set_title('航迹1关联点迹', color='white')
         axes_trs = [ax1, ax2]
         col_labels = ['点迹编号', '方位角(°)', '距离(m)', '速度(m/s)', '加速度(m/s2)', '航角偏转(°)']
 
