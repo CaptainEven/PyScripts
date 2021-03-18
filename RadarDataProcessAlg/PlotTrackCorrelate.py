@@ -17,6 +17,9 @@ from TrackInit import direct_method_with_bkg, logic_method_with_bkg, corrected_l
 from TrackInit import extrapolate_plot, Plot, PlotStates
 from TrackInit import start_gate_check, relate_gate_check
 
+plt.rcParams['font.family'] = ['sans-serif']
+plt.rcParams['font.sans-serif'] = ['SimHei']
+
 
 def get_predict_plot(track, cycle_time):
     """
@@ -278,7 +281,7 @@ def draw_plot_track_correspondence(cycle_time,
         # ---------- 绘图
         marker_size = 20
         txt_size = 15
-        col_w = 0.15
+        col_w = 0.205
 
         n_tracks = len(tracks)
         n_sample = n_tracks + len(PlotStates)
@@ -294,24 +297,28 @@ def draw_plot_track_correspondence(cycle_time,
                      'color': 'yellow',
                      'size': txt_size
                      }
+        
+        # bkg = plt.imread("./china.png")
 
         # 绘制基础地图(极坐标系)
         fig = plt.figure(figsize=[18, 9], dpi=100)
-        fig.patch.set_alpha(0.7)
-        fig.suptitle('Radar')
+        fig.patch.set_facecolor('black')
+        # fig.patch.set_alpha(0.95)
+        fig.suptitle('雷达扫描实时数据')
         gs = GridSpec(2, 2, figure=fig)
 
         ax0 = plt.subplot(gs[:, 0], projection="polar")
         # ax0 = plt.subplot(121, projection="polar")
-        ax0.set_facecolor('#000000')
-        ax0.set_alpha(0.2)
+        ax0.patch.set_facecolor('#000000')
+        ax0.patch.set_alpha(0.9)
         ax0.set_theta_zero_location('N')  # 'E', 'N'
         ax0.set_theta_direction(1)  # anti-clockwise
         ax0.set_rmin(10)
         ax0.set_rmax(3500)
         ax0.set_rticks(np.arange(-3500, 3500, 500))
-        ax0.tick_params(labelsize=6)
-        ax0.set_title('polar')
+        ax0.tick_params(labelsize=12, colors='gold')
+        ax0.set_title('雷达极坐标')
+        # ax0.imshow(bkg)
 
         # 极坐标绘制雷达扫描指针
         bar = ax0.bar(0, 3000, width=0.35, alpha=0.3, color='green', label='Radar scan')
@@ -319,16 +326,16 @@ def draw_plot_track_correspondence(cycle_time,
         ax1 = plt.subplot(gs[0, 1])
         ax1.axis('tight')
         ax1.axis('off')
-        ax1.set_title('Track 0 plots')
+        ax1.set_title('航迹0关联点迹')
         ax2 = plt.subplot(gs[1, 1])
         ax2.axis('tight')
         ax2.axis('off')
-        ax2.set_title('Track 1 plots')
+        ax2.set_title('航迹1关联点迹')
         axes_trs = [ax1, ax2]
-        col_labels = ['PlotID', 'Direction', 'Distance', 'Velocity', 'Acceleration', 'Heading']
+        col_labels = ['点迹编号', '方位角(°)', '距离(m)', '速度(m/s)', '加速度(m/s2)', '航角偏转(°)']
 
         # 构建track的点迹状态数组
-        track_stats = np.full((len(tracks), len(plot_objs_per_cycle), len(col_labels)), -1.0, dtype=np.float32)
+        track_stats = np.full((len(tracks), len(plot_objs_per_cycle), len(col_labels)), 0.0, dtype=np.float32)
         # for i, track in enumerate(tracks):
         #     for j, plot in enumerate(track.plots_):
         #         plot.cart_to_polar()
@@ -368,10 +375,14 @@ def draw_plot_track_correspondence(cycle_time,
         cycle_noise_txts = []
 
         cycle_dots_extra = []  # 记录一个cycle的外推点
-        cycle_ccs_relate = []    # 记录一个cycle的相关波门
+        cycle_dot_txts_extra = []
+        cycle_ccs_relate = []  # 记录一个cycle的相关波门
 
         # 两层for循环遍历每一个cycle的每一个点迹(关联点迹或噪声点迹)
         for cycle, cycle_plot_objs in tqdm(plot_objs_per_cycle):
+            if cycle > 5:
+                break
+
             # if len(cycle_noise_dots) > 0:
             #     for noise_dot, txt in zip(cycle_noise_dots, cycle_noise_txts):
             #         noise_dot.remove()
@@ -379,12 +390,14 @@ def draw_plot_track_correspondence(cycle_time,
             #     cycle_noise_dots = []
             #     cycle_noise_txts = []
             if len(cycle_dots_extra) > 0 and len(cycle_dots_extra) == len(cycle_ccs_relate):
-                for dot, circle in zip(cycle_dots_extra, cycle_ccs_relate):
+                for dot, dot_txt, circle in zip(cycle_dots_extra, cycle_dot_txts_extra, cycle_ccs_relate):
                     dot.remove()
+                    dot_txt.remove()
                     circle.remove()
 
                 cycle_dots_extra = []  # 记录一个cycle的外推点
-                cycle_ccs_relate = []    # 记录一个cycle的相关波门
+                cycle_dot_txts_extra = []
+                cycle_ccs_relate = []  # 记录一个cycle的相关波门
 
             for k, plot_obj in enumerate(cycle_plot_objs):
                 if plot_obj.state_ == 0:  # 自由点迹(噪声)
@@ -415,11 +428,14 @@ def draw_plot_track_correspondence(cycle_time,
 
                 # 绘制极坐标点迹
                 if state == 'Related':
-                    type0 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
+                    if plot_obj.correlated_track_id_ == 0:
+                        type0 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
+                    elif plot_obj.correlated_track_id_ == 1:
+                        type1 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
 
                     # 绘制航迹标签
                     if cycle == 0:
-                        txt = 'Track' + str(plot_obj.correlated_track_id_)
+                        txt = '航迹' + str(plot_obj.correlated_track_id_)
                         ax0.text(theta, r, txt,
                                  fontsize=font_dict['size'],
                                  color=font_dict['color'])
@@ -435,7 +451,7 @@ def draw_plot_track_correspondence(cycle_time,
                     if r < -3000 or r > 3000:
                         continue
 
-                    type1 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
+                    type2 = ax0.scatter(theta, r, c=color, marker=marker, s=marker_size)
                     cycle_noise_dots.append(type1)  # 记录当前扫描周期的噪声点
 
                     # type1_txt = ax0.text(theta, r, str(cycle + 1),
@@ -498,8 +514,8 @@ def draw_plot_track_correspondence(cycle_time,
                         ## 暂停显示中间步骤
                         plt.pause(pause_time)
                         if is_save:
-                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
-                            plt.savefig(frame_f_path)
+                            frame_f_path = './{:05d}.png'.format(fr_cnt)
+                            plt.savefig(frame_f_path, facecolor='black')
                             fr_cnt += 1
 
                         cc_min.remove()
@@ -528,27 +544,30 @@ def draw_plot_track_correspondence(cycle_time,
                         ## 暂停显示中间步骤
                         plt.pause(pause_time)
                         if is_save:
-                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
-                            plt.savefig(frame_f_path)
+                            frame_f_path = './{:05d}.png'.format(fr_cnt)
+                            plt.savefig(frame_f_path, facecolor='black')
                             fr_cnt += 1
 
                         arrow_extra.remove()
 
                         # --- 绘制外推点迹
                         dot_extra = ax0.scatter(t_extra, r_extra, c='white', marker='D', s=marker_size)
+                        dot_extra_txt = ax0.text(t_extra, r_extra, '外推点和相关波门',
+                                                 fontsize=font_dict['size'],
+                                                 color=font_dict['color'])
 
                         ## 暂停显示中间步骤
                         plt.pause(pause_time)
                         if is_save:
-                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
-                            plt.savefig(frame_f_path)
+                            frame_f_path = './{:05d}.png'.format(fr_cnt)
+                            plt.savefig(frame_f_path, facecolor='black')
                             fr_cnt += 1
 
                         # --- 绘制相关波门
                         if cur_id < len(tracks[i].plots_) - 1:
                             nex_plot.cart_to_polar()
                             x_nex_, y_nex_ = pseudo_xy_in_polar(nex_plot.r_, nex_plot.theta_)
-    
+
                             cc_relate = plt.Circle((x_nex_, y_nex_),
                                                    radius=r_min, color='g', fill=False, transform=ax0.transData._b)
                             ax0.add_patch(cc_relate)
@@ -556,13 +575,14 @@ def draw_plot_track_correspondence(cycle_time,
                         ## 暂停显示中间步骤
                         plt.pause(pause_time)
                         if is_save:
-                            frame_f_path = './{:05d}.jpg'.format(fr_cnt)
-                            plt.savefig(frame_f_path)
+                            frame_f_path = './{:05d}.png'.format(fr_cnt)
+                            plt.savefig(frame_f_path, facecolor='black')
                             fr_cnt += 1
 
                         # dot_extra.remove()
                         # cc_relate.remove()
                         cycle_dots_extra.append(dot_extra)
+                        cycle_dot_txts_extra.append(dot_extra_txt)
                         cycle_ccs_relate.append(cc_relate)
 
                 # ----- 绘制雷达扫描指针
@@ -583,7 +603,7 @@ def draw_plot_track_correspondence(cycle_time,
                 #              color=font_dict['color'])
 
             if cycle == track_init_cycle:
-                ax0.legend((type0, type1), (u'Track', u'Noise'), loc=2)
+                ax0.legend((type0, type1, type2), ('关联点迹', '关联点迹', '噪声'), loc=2)
 
             # # ----- 绘制雷达扫描指针
             # bar.remove()
@@ -602,8 +622,8 @@ def draw_plot_track_correspondence(cycle_time,
 
             ## ----- 存放每一个cycle的图
             if is_save:
-                frame_f_path = './{:05d}.jpg'.format(fr_cnt)
-                plt.savefig(frame_f_path)
+                frame_f_path = './{:05d}.png'.format(fr_cnt)
+                plt.savefig(frame_f_path, facecolor='black')
                 fr_cnt += 1
             # print('Cycle {:d} done.'.format(cycle + 1))
 
@@ -612,10 +632,10 @@ def draw_plot_track_correspondence(cycle_time,
 
     # ---------- 格式转换: *.jpg ——> .mp4 ——> .gif
     if is_convert:
-        jpg_f_list = [x for x in os.listdir('./') if x.endswith('.jpg')]
+        jpg_f_list = [x for x in os.listdir('./') if x.endswith('.png')]
         if len(jpg_f_list) > 0:
             out_video_path = './scan.mp4'
-            cmd_str = 'ffmpeg -f image2 -r 1 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}' \
+            cmd_str = 'ffmpeg -f image2 -r 2 -i {}/%05d.png -b 5000k -c:v mpeg4 {}' \
                 .format('.', out_video_path)
             os.system(cmd_str)
 
@@ -625,7 +645,7 @@ def draw_plot_track_correspondence(cycle_time,
 
     # ----- 清空jpg文件
     if len([x for x in os.listdir('./') if x.endswith('.jpg')]) > 0:
-        cmd_str = 'del *.jpg'
+        cmd_str = 'del *.png'
         os.system(cmd_str)
 
     # plt.show()
@@ -1401,7 +1421,7 @@ def nn_plot_track_correlate(plots_per_cycle, cycle_time,
                     cycle_plot_objs.append(obs_plot_obj)
 
                 elif len(can_plot_objs) > 1:
-                    # NN点航关联
+                    # ----- NN点航关联
                     min_ma_dist = min(ma_dists)
                     min_idx = ma_dists.index(min_ma_dist)
                     obs_plot_obj = can_plot_objs[min_idx]

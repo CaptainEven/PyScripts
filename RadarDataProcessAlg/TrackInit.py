@@ -1338,8 +1338,8 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                                 'x': plots[l + 1][0],
                                 'y': plots[l + 1][1],
                                 'v': v,
-                                'a': -1,
-                                'angle_in_degrees': -1
+                                'a': 0.0,
+                                'angle_in_degrees': 0.0
                             }
                             window_states[cycle_id - 1] = state_dict
 
@@ -1348,9 +1348,9 @@ def corrected_logic_method_with_bkg(plots_per_cycle, cycle_time,
                                 'cycle': cycle_id - 2,
                                 'x': plots[l + 2][0],
                                 'y': plots[l + 2][1],
-                                'v': -1,
-                                'a': -1,
-                                'angle_in_degrees': -1
+                                'v': 0.0,
+                                'a': 0.0,
+                                'angle_in_degrees': 0.0
                             }
                             window_states[cycle_id - 2] = state_dict
                     else:
