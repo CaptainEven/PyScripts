@@ -151,11 +151,63 @@ def test():
     print('Depth image written.')
 
 
+def test_depth_to_pointcloud():
+    """
+    """
+    depth_f_path = './000010_depth_metric.npy'
+    image_f_path = './000010.png'
+
+    if not (os.path.isfile(depth_f_path) and os.path.isfile(image_f_path)):
+        print('[Err]: invalid file path.')
+        return
+
+    bgr = cv2.imread(image_f_path, cv2.IMREAD_COLOR)
+    depth = np.load(depth_f_path)
+
+    # KITTI数据集参数
+    f = 721   # pixel
+    b = 0.54  # m
+
+    H, W = bgr.shape[:2]
+    print('W×H: {:d}×{:d}'.format(W, H))
+    c, r = np.meshgrid(np.arange(W), np.arange(H))
+    # print(c, '\n', r)
+    # x, y = np.arange(W), np.arange(H)
+    cx, cy = W * 0.5, H * 0.5
+    
+    # ----- 过滤掉图像坐标系y轴方向
+    Y_START = 150
+    r = r[Y_START:]
+    c = c[Y_START:]
+    depth = depth[Y_START:]
+
+    # --------- 深度图——>点云x, y, z
+    points = np.zeros((H, W, 3), dtype=np.float32)
+    colors = np.zeros((H, W, 3), dtype=np.uint8)
+    points[r, c, 0] = (c - cx) * depth / f  # x
+    points[r, c, 1] = (r - cy) * depth / f  # y
+    points[r, c, 2] = depth                 # z
+
+    # bgr ——> rgb
+    colors = bgr[:, :, ::-1]
+
+    # ----- 过滤掉x, y, z全为0的点
+    inds = np.where((points[:, :, 0] != 0.0) |
+                    (points[:, :, 1] != 0.0) |
+                    (points[:, :, 2] != 0.0))
+    points = points[inds]
+    colors = colors[inds]
+
+    # 保存ply点云文件
+    print('Total {:d} 3d points remained.'.format(points.shape[0]))
+    points2ply(points, colors, './ply_10.ply')
+    print('Ply poind cloud saved.')
+
+
 def test_xiaomi():
     """
     KITTI视差图——>深度图——>点云
     """
-
     def disp2depth(b, f, disp):
         """
         """
@@ -167,23 +219,23 @@ def test_xiaomi():
 
         return depth
 
-    disp_f_path = './disp_10.png'  # TestDisparity2DepthAndPC
-    img_f_path  = './left_10.png'
+    disp_f_path = './disp_2.png'  # TestDisparity2DepthAndPC
+    img_f_path  = './left_2.png'
     if not (os.path.isfile(disp_f_path) or os.path.isfile(img_f_path)):
         print('[Err]: invalid disparity/image file path.')
         return
 
-    # KITTI数据集参数
-    f = 721  # pixel
-    b = 0.54  # m
+    # # KITTI数据集参数
+    # f = 721  # pixel
+    # b = 0.54  # m
 
-    # # xiaomi参数
-    # # fx = 998.72290039062500
-    # # fy = 1000.0239868164063
-    # f = (998.72290039062500 + 1000.0239868164063) * 0.5  # 1000.0
-    # cx = 671.15643310546875
-    # cy = 384.32458496093750
-    # b = 0.12  # m
+    # xiaomi参数
+    # fx = 998.72290039062500
+    # fy = 1000.0239868164063
+    f = (998.72290039062500 + 1000.0239868164063) * 0.5  # 1000.0
+    cx = 671.15643310546875
+    cy = 384.32458496093750
+    b = 0.12  # m
 
     # 读取视差图
     disp = cv2.imread(disp_f_path, cv2.IMREAD_ANYDEPTH)
@@ -222,14 +274,14 @@ def test_xiaomi():
     points = points[inds]
     colors = colors[inds]
 
-    # # ----- 滤波
-    inds = np.where(
-        (points[:, 1] > -1.0)
-        & (points[:, 1] < 1.0)
-    )
-    points = points[inds]
-    colors = colors[inds]
-    print('{:d} 3D points left.'.format(inds[0].size))
+    # # # ----- 滤波
+    # inds = np.where(
+    #     (points[:, 1] > -1.0)
+    #     & (points[:, 1] < 1.0)
+    # )
+    # points = points[inds]
+    # colors = colors[inds]
+    # print('{:d} 3D points left.'.format(inds[0].size))
 
     # # --- apply transformations
     # points[:, 0] += 5.0
@@ -237,22 +289,24 @@ def test_xiaomi():
     # points[:, 2] -= 8.0
     # points = np.reshape(points, (-1, 3))
 
-    view_points_cloud(points)
+    # view_points_cloud(points)
 
     # 保存pcd点云文件
-    points2pcd(points, './pc_10.pcd')
+    points2pcd(points, './pc_2.pcd')
     print('PCD poind cloud saved.')
 
     # 保存ply点云文件
-    points2ply(points, colors, './ply_10.ply')
+    points2ply(points, colors, './ply_2.ply')
     print('Ply poind cloud saved.')
 
     # ---------- 保存深度图
     depth *= 1000.0  # m ——> mm
     depth = depth.astype(np.uint16)
-    cv2.imwrite('./depth_10.png', depth)
+    cv2.imwrite('./depth_2.png', depth)
     print('Depth image written.')
 
 
 if __name__ == '__main__':
-    test_xiaomi()
+    # test_xiaomi()
+
+    test_depth_to_pointcloud()
