@@ -40,12 +40,13 @@ from tqdm import tqdm
 # }
 
 class_types = [
-    'car',            # 0
-    'bicycle',        # 1
-    'person',         # 2
-    'cyclist',        # 3
-    'tricycle',       # 4
-    'car_plate'       # 5
+    'car',                # 0
+    'bicycle',            # 1
+    'person',             # 2
+    'cyclist',            # 3
+    'tricycle',           # 4
+    'car_plate'           # 5,
+    'non_interest_zone',  # 6
 ]  # 5类(不包括背景)
 
 cls2id = {
@@ -54,7 +55,8 @@ cls2id = {
     'person': 2,
     'cyclist': 3,
     'tricycle': 4,
-    'car_plate': 5
+    'car_plate': 5,
+    'non_interest_zone': 6,
 }
 
 id2cls = {
@@ -63,7 +65,8 @@ id2cls = {
     2: 'person',
     3: 'cyclist',
     4: 'tricycle',
-    5: 'car_plate'
+    5: 'car_plate',
+    6: 'non_interest_zone',
 }
 
 # ----------
@@ -109,9 +112,15 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir, one_plus=True):
     # 读取dark label(读取该视频seq的标注文件, 一行代表一帧)
     with open(txt_label_f_path, 'r', encoding='utf-8') as r_h:
         # 读视频标注文件的每一行: 每一行即一帧
-        for line in tqdm(r_h.readlines()):
+        for line_i, line in tqdm(enumerate(r_h.readlines())):
             line = line.split(',')
+            if len(line) < 6:
+                continue
+
             f_id = int(line[0])
+            if f_id > line_i:
+                f_id -= 1
+
             n_objs = int(line[1])
             # print('\nFrame {:d} in seq {}, total {:d} objects'.format(f_id + 1, seq_name, n_objs))
 
@@ -129,6 +138,9 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir, one_plus=True):
             # 遍历该帧的每一个object
             for cur in range(2, len(line), 6):  # cursor
                 class_type = line[cur + 5].strip()
+                if class_type == 'non_interest_zone':
+                    continue
+                
                 class_id = cls2id[class_type]  # class type => class id
 
                 # 解析track id
@@ -170,10 +182,11 @@ def viz_dark_label(img_dir, txt_label_f_path, viz_dir, one_plus=True):
             # print('{} written.'.format(img_path_out))
 
 
-def process_labeling(data_root, one_plus=True):
+def process_seqs(data_root, one_plus=True):
     """
     处理标注团队的视频标注
     标注工具darklabel
+    TODO: process the image in the same time(draw non_interest_zone for example)
     """
     global W, H
 
@@ -213,6 +226,11 @@ def process_labeling(data_root, one_plus=True):
     video_names = [x for x in os.listdir(data_root) if x.endswith('.mp4')]
     video_names.sort()
     for video in video_names:
+        # if video[:-4] != 'train_2021_04_03_3':
+        #     continue
+        # if video != 'train_2021_03_30_1.mp4':
+        #     continue
+
         video_path = data_root + '/' + video
         if not os.path.isfile(video_path):
             print('[Warning]: invalid video path.')
@@ -236,15 +254,15 @@ def process_labeling(data_root, one_plus=True):
         cap = cv2.VideoCapture(video_path)
 
         print('\nProcessing video %s' % video)
-        FRAME_NUM = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # 获取视频所有帧数
-        print('Total {:d} frames'.format(FRAME_NUM))
+        N_FRAMES = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) + 2  # 获取视频所有帧数
+        print('Total {:d} frames'.format(N_FRAMES))
 
-        if FRAME_NUM == 0:
+        if N_FRAMES == 0:
             break
 
         # ---------- 写入每一帧
         print('Start writing frames...')
-        for i in tqdm(range(FRAME_NUM)):
+        for i in tqdm(range(N_FRAMES)):
             success, frame = cap.read()
             if not success:  # 判断当前帧是否存在
                 break
@@ -255,6 +273,7 @@ def process_labeling(data_root, one_plus=True):
             # 写入图片
             img_path = img_dir + '/' + '{:05d}.jpg'.format(i)
             cv2.imwrite(img_path, frame)
+
         print('Writing frames done.')
 
         # ---------- 创建label dir
@@ -264,7 +283,7 @@ def process_labeling(data_root, one_plus=True):
 
         # ----- 当前seq生成labels
         print('Start generating labels...')
-        id_set_dict = gen_labels_for_seq(txt_path, seq_label_dir, class_types, one_plus)
+        id_set_dict = gen_labels_for_seq(txt_path, img_dir, seq_label_dir, class_types, one_plus)
         if id_set_dict == None:
             print('Skip {} because of wrong label.'.format(video))
             continue
@@ -282,6 +301,9 @@ def process_labeling(data_root, one_plus=True):
         print('Visualizing done.')
 
         # 可视化视频
+        cmd_str = 'del e:/*.mp4'
+        os.system(cmd_str)
+
         print('Start generating viz video...')
         out_video_path = 'e:/{:s}_viz.mp4'.format(prefix)
         cmd_str = 'ffmpeg -f image2 -r 12 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'. \
@@ -304,7 +326,7 @@ def process_labeling(data_root, one_plus=True):
     print('Total {} frames.'.format(fr_cnt))
 
 
-def gen_labels_for_seq(dark_txt_path, seq_label_dir, class_types, one_plus=True):
+def gen_labels_for_seq(dark_txt_path, img_dir, seq_label_dir, class_types, one_plus=True):
     """
     """
     global seq_max_id_dict, start_id_dict, fr_cnt, W, H
@@ -327,11 +349,25 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, class_types, one_plus=True)
         for line_i, line in tqdm(enumerate(r_h.readlines())):
             fr_cnt += 1
 
-            # 判断该帧是否合法的标志
-            is_fr_valid = False
+            if len(line.split(',')) < 6:
+                continue
 
             line = line.split(',')
             fr_id = int(line[0])
+            if fr_id > line_i:
+                fr_id -= 1
+            
+            img_path = img_dir + '/{:05d}.jpg'.format(fr_id)
+            if not os.path.isfile(img_path):
+                print('[Wwarning]: frame {:s} not exists.'.format(img_path))
+                continue
+
+            # 保存该帧所有NIZ区域
+            fr_niz_boxes = []
+
+            # 判断该帧是否合法的标志
+            is_fr_valid = False
+
             n_objs = int(line[1])
             # print('\nFrame {:d} in seq {}, total {:d} objects'.format(f_id + 1, seq_name, n_objs))
 
@@ -341,6 +377,12 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, class_types, one_plus=True)
             # 遍历该帧的每一个object
             for cur in range(2, len(line), 6):  # cursor
                 class_type = line[cur + 5].strip()
+                # if class_type == 'non_interest_zone':
+                #     # draw non_interest_zone for training img
+                #     continue
+                # elif class_type == 'cyclist':
+                #     print('Pause here.')
+
                 class_id = cls2id[class_type]  # class type => class id
 
                 # 解析track id
@@ -372,6 +414,11 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, class_types, one_plus=True)
                 x2 = x2 if x2 < W else W - 1
                 y2 = y2 if y2 >= 0 else 0
                 y2 = y2 if y2 < H else H - 1
+
+                if class_type == 'non_interest_zone':
+                    # 保存当前帧不感兴趣区域
+                    fr_niz_boxes.append([x1, y1, x2, y2])
+                    continue
 
                 if x1 >= x2 or y1 >= y2:
                     print('{} wrong labeled in line {}.'
@@ -435,6 +482,21 @@ def gen_labels_for_seq(dark_txt_path, seq_label_dir, class_types, one_plus=True)
                     for obj in fr_label_objs:
                         w_h.write(obj)
                 # print('{} written\n'.format(label_f_path))
+
+                # 队训练图片绘制不感兴趣区域
+                if not os.path.isfile(img_path):
+                    print('[Warning]: Frame image {:s} not exists.'.format(img_path))
+                
+                img = cv2.imread(img_path)
+                for niz in fr_niz_boxes:
+                    x1, y1, x2, y2 = niz
+                    try:
+                        img[y1: y2, x1: x2, :] = 0
+                    except Exception as e:
+                        print(e)
+                        return None
+                cv2.imwrite(img_path, img)
+                # print('NIZ in image {:s} drawed.'.format(img_path))
             else:
                 return None
 
@@ -771,6 +833,5 @@ if __name__ == '__main__':
     # cmd_str = 'ffmpeg -f image2 -i {}/%05d.jpg -b 5000k -c:v mpeg4 {}'.format(viz_dir, out_video_path)
     # os.system(cmd_str)
 
-    process_labeling(data_root='F:/seq_label_21_0129', one_plus=True)
-
+    process_seqs(data_root='F:/seq_label_21_0513', one_plus=False)
     print('\nDone.')
