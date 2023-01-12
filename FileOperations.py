@@ -1,4 +1,4 @@
-# coding:utf-8
+# encoding=utf-8
 
 import os
 import shutil
@@ -7,6 +7,7 @@ import cv2
 import math
 import numpy as np
 from tqdm import tqdm
+from moviepy.editor import *
 
 
 def FindFileWithSuffix(root, suffix, f_list):
@@ -53,6 +54,7 @@ def RMFilesWithSuffix(root, suffix):
 
 def ImageRotate(image, angle, scale):
     """
+    ???
     :param image:
     :param angle:
     :param scale:
@@ -70,7 +72,14 @@ def ImageRotate(image, angle, scale):
 
     return image_rotation, M
 
-def opencv_rotate(img, angle):
+
+def test_Rotate_mat():
+    """
+    """
+    h, w = 720, 1280
+
+
+def openCVRotate(img, angle):
     """
     :param img: 
     :param angle: 
@@ -80,39 +89,50 @@ def opencv_rotate(img, angle):
     h, w = img.shape[:2]
     center = (w / 2, h / 2)
     scale = 1.0
+
     # 2.1获取M矩阵
     """
     M矩阵
     [
-    cosA -sinA (1-cosA)*centerX+sinA*centerY
-    sinA  cosA  -sinA*centerX+(1-cosA)*centerY
+        cosA  -sinA  (1-cosA)*centerX+sinA*centerY
+        sinA   cosA  -sinA*centerX+(1-cosA)*centerY
     ]
     """
-    M = cv2.getRotationMatrix2D(center, angle, scale)
+    Mat = cv2.getRotationMatrix2D(center, angle, scale)
+    print("Mat:\n", Mat)
 
     # 2.2 新的宽高，radians(angle) 把角度转为弧度 sin(弧度)
-    new_H = int(w * abs(math.sin(math.radians(angle))) + h * abs(math.cos(math.radians(angle))))
-    new_W = int(h * abs(math.sin(math.radians(angle))) + w * abs(math.cos(math.radians(angle))))
+    radians = math.radians(angle)
+    print("Radians: {:.4f}".format(radians))
 
-    # 2.3 平移
-    M[0, 2] += (new_W - w) / 2
-    M[1, 2] += (new_H - h) / 2
+    new_H = int(w * abs(math.sin(radians)) + h * abs(math.cos(radians)))
+    new_W = int(h * abs(math.sin(radians)) + w * abs(math.cos(radians)))
+    print("new_W: ", new_W, ", new_H: ", new_H)
 
-    rotate = cv2.warpAffine(img, M, (new_W, new_H), borderValue=(0, 0, 0))
-    return rotate, M
+    # 2.3 平移(坐标系变换)
+    delta_w = (new_W - w) / 2
+    delta_h = (new_H - h) / 2
+    print("delta_w: ", delta_w, ", delta_h: ", delta_h)
+
+    Mat[0, 2] += delta_w
+    Mat[1, 2] += delta_h
+
+    rotate = cv2.warpAffine(img, Mat, (new_W, new_H), borderValue=(0, 0, 0))
+    return rotate, Mat
 
 
 def test_img_rotation2():
     """
     :return:
     """
-    img_path = "f:/5/1_25.jpg"
+    img_path = "./7_l.jpg"
     if not os.path.isfile(img_path):
         print("[Err]: invalid file path.")
         return
 
     img = cv2.imread(img_path, cv2.IMREAD_COLOR)
     H, W, C = img.shape
+    print("W: ", W, ", H: ", H)
 
     pt = (962, 505)
     print("Pixel before rotate 90 CW: ", pt)
@@ -121,10 +141,10 @@ def test_img_rotation2():
     cv2.imshow("origin", img)
     cv2.waitKey()
 
-    img_rotate, M = opencv_rotate(img, -90)
-    print("Affine matrix: \n", M)
+    img_rotate, Mat = openCVRotate(img, -90)
+    print("Affine mat:\n", Mat)
 
-    pt_rot = M.dot(np.array([pt[0], pt[1], 1.0]))  # 2×3 dot 3×1 ——> 2×1
+    pt_rot = Mat.dot(np.array([pt[0], pt[1], 1.0]))  # 2×3 dot 3×1 ——> 2×1
     pt_rot = (int(pt_rot[0] + 0.5), int(pt_rot[1] + 0.5))
     print("Pixel after rotate 90 CW:  ", pt_rot)
 
@@ -134,6 +154,8 @@ def test_img_rotation2():
 
     # cv2.imshow("rotate", img_rotate)
     # cv2.waitKey()
+
+    cv2.destroyAllWindows()
 
     cv2.imwrite("./test_rotate2.jpg", img_rotate)
 
@@ -160,7 +182,9 @@ def test_img_rotation():
     img_rotate, M = ImageRotate(img, -90, 1.0)
     print("Affine matrix: \n", M)
 
-    pt_rot = M.dot(np.array([pt[0], pt[1], 1.0]))  # 2×3 dot 3×1 ——> 2×1
+    # pixel coordinate conversion: 2×3 dot 3×1 ——> 2×1
+    pt_rot = M.dot(np.array([pt[0], pt[1], 1.0]))
+
     pt_rot = (int(pt_rot[0] + 0.5), int(pt_rot[1] + 0.5))
     print("Pixel after rotate 90 CW:  ", pt_rot)
 
@@ -652,6 +676,130 @@ def cpFiles(src_dir, dst_dir, ext, filter_func=None):
     print("Total {:d} files copied.".format(len(f_paths)))
 
 
+# def test_file_path():
+#     """
+#     """
+#     img_path = "/mnt/diskb/even/dataset/MCMOT/JPEGImages/train_2021_04_01_1/00121.jpg"
+#     img_dir_path, f_name = os.path.split(img_path)
+#     img_dir_name = img_dir_path.split("/")[-1]
+#     print(img_dir_path)
+#
+#     # txt_path = img_path.replace("JPEGImages", "labels_with_ids").replace(".jpg", ".txt")
+#     # if not os.path.isfile(txt_path):
+#     #     print("[Err]: invalid label path.")
+#     #     exit(-1)
+#
+#     txt_path = "f:/00121.txt"
+#     label = []
+#     with open(txt_path, "r", encoding="utf-8") as f:
+#         for line in f.readlines():
+#             line = line.strip()
+#             # print(line)
+#             items = line.split(" ")
+#             # items = list(map(lambda x: float(x), items))
+#             items = [items[2], items[3], items[4], items[5], items[0], items[1]]
+#             label.append(items)
+#         lb = np.array(label, dtype=np.float32)
+#
+#         # lb = np.array([x.split() for x in f.read().splitlines()], dtype=np.float32)
+#     print(lb)
+
+
+def cvtToMp4(src_f_path, dst_f_path, width=1280, height=720):
+    """
+    """
+    cap = cv2.VideoCapture(src_f_path)
+    if cap is None:
+        pront("[Err]: open video failed!")
+        exit(-1)
+
+    # dir_path = os.path.dirname(src_f_path)
+    # if not os.path.isdir(dir_path):
+    #     print("[Err]: invalid dir path.")
+    #     exit(-1)
+
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    vid_writer = cv2.VideoWriter(dst_f_path,
+                                 cv2.VideoWriter_fourcc(*"mp4v"),
+                                 fps,
+                                 (int(width), int(height)))
+
+    # while True:
+    #     succeed, frame = cap.read()
+    #     if not succeed:
+    #         print("Read frames done!")
+    #         break
+    #     vid_writer.write(frame)
+
+    for i in tqdm(range(n_frames)):
+        succeed, frame = cap.read()
+        if not succeed:
+            print("Read frames done!")
+            break
+        vid_writer.write(frame)
+
+
+def ResizeAndClipVideo(video_path, out_path,
+                       ratio,
+                       start_fr, end_fr):
+    """
+    @param video_path:
+    @param out_path:
+    @param ratio:
+    @param start_fr:
+    @param end_fr:
+    @return:
+    """
+    if not os.path.isfile(video_path):
+        print("[Err]: invalid video file path.")
+        return
+
+    cap = cv2.VideoCapture(video_path)
+    width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
+    height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))  # int
+
+    width_out = int(width * ratio)
+    height_out = int(height * ratio)
+
+    vid_writer = cv2.VideoWriter(out_path,
+                                 cv2.VideoWriter_fourcc(*"mp4v"),
+                                 fps,
+                                 (width_out, height_out))
+
+    for i in tqdm(range(n_frames)):
+        ## ----- read the video
+        if i >= start_fr and i < end_fr:
+            ret_val, frame = cap.read()
+            frame_rs = cv2.resize(frame, (width_out, height_out), cv2.INTER_AREA)
+            vid_writer.write(frame_rs)
+
+
+def TestMp4ToGif():
+    clip = (VideoFileClip("d:/test_13_half.mp4"))
+    clip.write_gif("d:/test_13.gif")
+
+
+
+def TestChinesePath():
+    """
+    @return:
+    """
+    img_path = "./test.png"
+    if not os.path.isfile(img_path):
+        print("[Err]: invalid file path.")
+        return
+
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)
+    # cv2.imwrite("./测试.jpg", img)
+    cv2.imencode('.jpg', img)[1].tofile("./测试.jpg")
+
+
 if __name__ == '__main__':
     # ChangeSuffix(root='d:/office/dense/stereo/depth_maps/dslr_images_undistorted',
     #              src_suffix='.geometric.bin',  # bin.jpg
@@ -669,12 +817,25 @@ if __name__ == '__main__':
     # test_disp_depth_pointcloud()
 
     # ## filter_debug_lib
-    # cpFiles(src_dir="C:/Program Files/PCL 1.12.0/3rdParty/VTK/lib",
-    #         dst_dir="C:/MyStereo-Refactor/3rdParty/VTK/lib",
-    #         ext=".lib",
-    #         filter_func=filter_debug_lib)
+    # E:/CppProjs/StereoExportDll/x64/Release
+    # E:/CppProjs/TestStereoDll/x64/Release
+    cpFiles(src_dir="D:/CppProjs/Stereo/x64/Release",
+            dst_dir="E:/CppProjs/StereoMeasure/x64/Release",
+            ext=".dll",
+            filter_func=None)
 
-    test_img_rotation()
-    test_img_rotation2()
+    # test_img_rotation()
+    # test_img_rotation2()
+
+    # cvtToMp4(src_f_path="D:/CppProjs/ByteTrackCppTRT/videos/2.mp4",
+    #          dst_f_path="D:/CppProjs/ByteTrackCppTRT/videos/2_cv.mp4")
+
+    # ResizeAndClipVideo(video_path="d:/test_13.mp4",
+    #                    out_path="d:/test_13_half.mp4",
+    #                    ratio=0.4,
+    #                    start_fr=0, end_fr=45)
+    # TestMp4ToGif()
+
+    # TestChinesePath()
 
     print('--Test done.\n')
